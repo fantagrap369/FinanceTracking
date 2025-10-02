@@ -276,11 +276,11 @@ const BankStatementUpload = () => {
     return accountKey;
   };
 
-  // Available categories
-  const availableCategories = [
+  // Available categories - now as state
+  const [availableCategories, setAvailableCategories] = useState([
     'Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 
     'Healthcare', 'Education', 'Travel', 'Utilities', 'Other'
-  ];
+  ]);
 
   // Find similar transactions based on store name or description
   const findSimilarTransactions = (transaction, allTransactions) => {
@@ -393,7 +393,9 @@ const BankStatementUpload = () => {
   const handleCreateNewCategory = () => {
     if (newCategory.trim() && !availableCategories.includes(newCategory.trim())) {
       const categoryToAdd = newCategory.trim();
-      availableCategories.push(categoryToAdd);
+      
+      // Add to available categories state
+      setAvailableCategories(prev => [...prev, categoryToAdd]);
       
       // Set the current transaction to use the new category
       if (editingCategoryForTransaction) {

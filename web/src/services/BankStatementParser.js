@@ -182,28 +182,38 @@ class BankStatementParser {
     const dataLines = lines.slice(headerIndex + 1).filter(line => line.trim());
     
     for (const line of dataLines) {
-      // Split by comma but be careful with descriptions that might contain commas
-      const columns = line.split(',').map(col => col.trim().replace(/"/g, ''));
-      
       console.log('CSV Line:', line);
-      console.log('Split columns:', columns);
       
-      if (columns.length >= 4) {
-        const [dateStr, amountStr, balanceStr, ...descriptionParts] = columns;
-        const date = this.parseDate(dateStr);
-        const amount = this.parseAmount(amountStr);
-        
-        console.log('Parsed - Date:', date, 'Amount:', amount, 'Description parts:', descriptionParts);
-        
-        if (date && amount !== null && amount !== 0) {
-          // Join description parts and clean up extra spaces
-          const description = descriptionParts.join(' ').trim().replace(/\s+/g, ' ');
-          
-          console.log('Final description:', description);
-          
-          if (description) {
-            // Only include expenses (negative amounts) or positive amounts for income
-            const isExpense = amount < 0;
+      // For CSV format, we need to be more careful with splitting
+      // The format is: Date, Amount, Balance, Description
+      // But description might contain commas, so we need to split more carefully
+      
+      // Find the first 3 commas to split into: Date, Amount, Balance, Description
+      const firstComma = line.indexOf(',');
+      const secondComma = line.indexOf(',', firstComma + 1);
+      const thirdComma = line.indexOf(',', secondComma + 1);
+      
+      if (firstComma === -1 || secondComma === -1 || thirdComma === -1) {
+        console.log('Skipping line - not enough commas:', line);
+        continue;
+      }
+      
+      const dateStr = line.substring(0, firstComma).trim();
+      const amountStr = line.substring(firstComma + 1, secondComma).trim();
+      const balanceStr = line.substring(secondComma + 1, thirdComma).trim();
+      const description = line.substring(thirdComma + 1).trim();
+      
+      console.log('Split - Date:', dateStr, 'Amount:', amountStr, 'Balance:', balanceStr, 'Description:', description);
+      
+      const date = this.parseDate(dateStr);
+      const amount = this.parseAmount(amountStr);
+      
+      console.log('Parsed - Date:', date, 'Amount:', amount);
+      
+      if (date && amount !== null && amount !== 0) {
+        if (description) {
+          // Only include expenses (negative amounts) or positive amounts for income
+          const isExpense = amount < 0;
             
             transactions.push({
               date: date,

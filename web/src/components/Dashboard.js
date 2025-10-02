@@ -50,10 +50,21 @@ const Dashboard = () => {
         startDate = subDays(now, 7);
     }
 
-    return expenses.filter(expense => {
+    const filtered = expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
-      return expenseDate >= startDate && expenseDate <= endDate;
+      // Set time to start of day for accurate comparison
+      const expenseDateStart = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate());
+      const startDateStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      const endDateStart = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+      
+      return expenseDateStart >= startDateStart && expenseDateStart <= endDateStart;
     });
+    
+    // Debug logging
+    console.log(`Filtered expenses for period ${selectedPeriod}:`, filtered.length, 'expenses');
+    console.log('Date range:', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
+    
+    return filtered;
   };
 
   const getChartData = () => {
@@ -100,7 +111,12 @@ const Dashboard = () => {
 
       const periodExpenses = filteredExpenses.filter(expense => {
         const expenseDate = new Date(expense.date);
-        return expenseDate >= current && expenseDate <= periodEnd;
+        // Set time to start of day for accurate comparison
+        const expenseDateStart = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate());
+        const currentStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+        const periodEndStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), periodEnd.getDate());
+        
+        return expenseDateStart >= currentStart && expenseDateStart <= periodEndStart;
       });
       
       const total = periodExpenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -111,6 +127,11 @@ const Dashboard = () => {
         fullDate: format(current, 'MMM dd, yyyy'),
         count: periodExpenses.length
       });
+      
+      // Debug logging
+      if (periodExpenses.length > 0) {
+        console.log(`Date: ${format(current, 'yyyy-MM-dd')}, Expenses: ${periodExpenses.length}, Total: ${total}`);
+      }
 
       current.setDate(current.getDate() + intervalDays);
     }

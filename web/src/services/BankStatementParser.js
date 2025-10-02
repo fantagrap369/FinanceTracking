@@ -335,6 +335,8 @@ class BankStatementParser {
 
   parseDate(dateStr) {
     try {
+      console.log('🔍 Parsing date:', dateStr);
+      
       // Handle different date formats
       const formats = [
         /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,  // YYYY/MM/DD (FNB format)
@@ -346,6 +348,7 @@ class BankStatementParser {
         const match = dateStr.match(format);
         if (match) {
           let [, part1, part2, part3] = match;
+          console.log('📅 Format matched:', format.source, 'Parts:', part1, part2, part3);
           
           if (part3.length === 2) {
             part3 = '20' + part3;
@@ -357,8 +360,11 @@ class BankStatementParser {
             const month = parseInt(part2) - 1; // JavaScript months are 0-indexed
             const day = parseInt(part3);
             const date = new Date(year, month, day);
+            console.log('🗓️ YYYY/MM/DD - Year:', year, 'Month:', month, 'Day:', day, 'Date:', date);
             if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
-              return date.toISOString().split('T')[0];
+              const result = date.toISOString().split('T')[0];
+              console.log('✅ Date result:', result);
+              return result;
             }
             // If this format matched but date is invalid, don't try other interpretations
             continue;
@@ -369,9 +375,13 @@ class BankStatementParser {
           const date2 = new Date(`${part2}/${part1}/${part3}`);
           const date3 = new Date(`${part3}/${part1}/${part2}`);
           
+          console.log('🔄 Fallback dates:', date1, date2, date3);
+          
           for (const date of [date1, date2, date3]) {
             if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
-              return date.toISOString().split('T')[0];
+              const result = date.toISOString().split('T')[0];
+              console.log('✅ Fallback date result:', result);
+              return result;
             }
           }
         }

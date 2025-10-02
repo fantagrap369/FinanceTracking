@@ -10,6 +10,8 @@ const BankStatementUpload = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   const [extractedTransactions, setExtractedTransactions] = useState([]);
+  const [accountGroups, setAccountGroups] = useState({});
+  const [selectedAccount, setSelectedAccount] = useState('all');
   const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -40,15 +42,26 @@ const BankStatementUpload = () => {
       setIsProcessing(true);
       setProcessingStatus(`Processing ${fileObj.name}...`);
       
-      const transactions = await extractTransactionsFromFile(fileObj.file);
+      const result = await extractTransactionsFromFile(fileObj.file);
+      const { accountInfo, transactions } = result;
       
       setUploadedFiles(prev => 
         prev.map(f => 
           f.id === fileObj.id 
-            ? { ...f, status: 'processed', transactions }
+            ? { ...f, status: 'processed', transactions, accountInfo }
             : f
         )
       );
+
+      // Group transactions by account
+      const accountKey = accountInfo.accountNumber || accountInfo.accountType || 'unknown';
+      setAccountGroups(prev => ({
+        ...prev,
+        [accountKey]: {
+          accountInfo,
+          transactions: [...(prev[accountKey]?.transactions || []), ...transactions]
+        }
+      }));
 
       setExtractedTransactions(prev => [...prev, ...transactions]);
       setProcessingStatus(`Successfully processed ${fileObj.name}`);
@@ -148,6 +161,8 @@ const BankStatementUpload = () => {
   const handleClearAll = () => {
     setUploadedFiles([]);
     setExtractedTransactions([]);
+    setAccountGroups({});
+    setSelectedAccount('all');
     setShowPreview(false);
   };
 
@@ -169,6 +184,40 @@ const BankStatementUpload = () => {
       'Other': '#6b7280'
     };
     return colors[category] || '#6b7280';
+  };
+
+  const getFilteredTransactions = () => {
+    if (selectedAccount === 'all') {
+      return extractedTransactions;
+    }
+    return accountGroups[selectedAccount]?.transactions || [];
+  };
+
+  const getAccountStatistics = (transactions) => {
+    const expenses = transactions.filter(t => !t.isIncome);
+    const income = transactions.filter(t => t.isIncome);
+    const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
+    const totalIncome = income.reduce((sum, t) => sum + t.amount, 0);
+    const netTotal = totalIncome - totalExpenses;
+
+    return {
+      totalTransactions: transactions.length,
+      expenseCount: expenses.length,
+      incomeCount: income.length,
+      totalExpenses,
+      totalIncome,
+      netTotal
+    };
+  };
+
+  const getAccountDisplayName = (accountKey, accountInfo) => {
+    if (accountInfo.accountType) {
+      return `${accountInfo.bankName || 'Bank'} - ${accountInfo.accountType}`;
+    }
+    if (accountInfo.accountNumber) {
+      return `${accountInfo.bankName || 'Bank'} - ${accountInfo.accountNumber}`;
+    }
+    return accountKey;
   };
 
   const getStatusIcon = (status) => {
@@ -376,6 +425,94 @@ const BankStatementUpload = () => {
         </div>
       )}
 
+      {/* Account Overview */}
+      {Object.keys(accountGroups).length > 0 && (
+        <div style={{ 
+          backgroundColor: 'white', 
+          padding: '1.5rem', 
+          borderRadius: '0.75rem', 
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+          border: '1px solid #e5e7eb',
+          marginBottom: '1.5rem'
+        }}>
+          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
+            Account Overview
+          </h3>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+            gap: '1rem' 
+          }}>
+            {Object.entries(accountGroups).map(([accountKey, { accountInfo, transactions }]) => {
+              const stats = getAccountStatistics(transactions);
+              return (
+                <div key={accountKey} style={{ 
+                  padding: '1rem',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: '0.75rem'
+                  }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#1f2937' }}>
+                      {getAccountDisplayName(accountKey, accountInfo)}
+                    </h4>
+                    <span style={{ 
+                      fontSize: '0.75rem', 
+                      color: '#6b7280',
+                      backgroundColor: '#e5e7eb',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.25rem'
+                    }}>
+                      {stats.totalTransactions} transactions
+                    </span>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1fr 1fr', 
+                    gap: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Expenses:</span>
+                      <div style={{ fontWeight: '600', color: '#ef4444' }}>
+                        R{stats.totalExpenses.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Income:</span>
+                      <div style={{ fontWeight: '600', color: '#10b981' }}>
+                        R{stats.totalIncome.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Net:</span>
+                      <div style={{ 
+                        fontWeight: '600', 
+                        color: stats.netTotal >= 0 ? '#10b981' : '#ef4444'
+                      }}>
+                        R{stats.netTotal.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Balance:</span>
+                      <div style={{ fontWeight: '600', color: '#1f2937' }}>
+                        R{accountInfo.balance?.toFixed(2) || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Extracted Transactions Preview */}
       {extractedTransactions.length > 0 && (
         <div style={{ 
@@ -393,9 +530,31 @@ const BankStatementUpload = () => {
           }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
-                Extracted Transactions ({extractedTransactions.length})
+                Extracted Transactions ({getFilteredTransactions().length})
               </h3>
-              {extractedTransactions.length > 0 && (
+              {Object.keys(accountGroups).length > 1 && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <select
+                    value={selectedAccount}
+                    onChange={(e) => setSelectedAccount(e.target.value)}
+                    style={{
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      backgroundColor: 'white'
+                    }}
+                  >
+                    <option value="all">All Accounts</option>
+                    {Object.entries(accountGroups).map(([accountKey, { accountInfo }]) => (
+                      <option key={accountKey} value={accountKey}>
+                        {getAccountDisplayName(accountKey, accountInfo)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {getFilteredTransactions().length > 0 && (
                 <div style={{ 
                   display: 'flex', 
                   gap: '1.5rem', 
@@ -405,17 +564,17 @@ const BankStatementUpload = () => {
                 }}>
                   <span>
                     <strong style={{ color: '#ef4444' }}>
-                      {extractedTransactions.filter(t => !t.isIncome).length}
+                      {getFilteredTransactions().filter(t => !t.isIncome).length}
                     </strong> expenses
                   </span>
                   <span>
                     <strong style={{ color: '#10b981' }}>
-                      {extractedTransactions.filter(t => t.isIncome).length}
+                      {getFilteredTransactions().filter(t => t.isIncome).length}
                     </strong> income
                   </span>
                   <span>
                     Total: <strong style={{ color: '#1f2937' }}>
-                      R{extractedTransactions.reduce((sum, t) => sum + (t.isIncome ? t.amount : -t.amount), 0).toFixed(2)}
+                      R{getFilteredTransactions().reduce((sum, t) => sum + (t.isIncome ? t.amount : -t.amount), 0).toFixed(2)}
                     </strong>
                   </span>
                 </div>
@@ -557,10 +716,10 @@ const BankStatementUpload = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {extractedTransactions.map((transaction, index) => (
+                  {getFilteredTransactions().map((transaction, index) => (
                     <tr key={transaction.id} style={{ 
                       backgroundColor: index % 2 === 0 ? 'white' : '#f8fafc',
-                      borderBottom: index < extractedTransactions.length - 1 ? '1px solid #f3f4f6' : 'none'
+                      borderBottom: index < getFilteredTransactions().length - 1 ? '1px solid #f3f4f6' : 'none'
                     }}>
                       <td style={{ 
                         padding: '0.75rem 1rem', 

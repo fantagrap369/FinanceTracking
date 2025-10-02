@@ -40,6 +40,9 @@ class BankStatementParser {
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const transactions = [];
     
+    // Extract account information first
+    const accountInfo = this.extractAccountInfo(lines);
+    
     // Try different parsing strategies
     const strategies = [
       () => this.parseStandardFormat(lines),
@@ -52,7 +55,10 @@ class BankStatementParser {
       try {
         const result = strategy();
         if (result.length > 0) {
-          return result.map(tx => this.enhanceTransaction(tx, bankName));
+          return {
+            accountInfo,
+            transactions: result.map(tx => this.enhanceTransaction(tx, bankName, accountInfo))
+          };
         }
       } catch (error) {
         console.warn('Parsing strategy failed:', error);
@@ -60,7 +66,68 @@ class BankStatementParser {
       }
     }
     
-    return [];
+    return { accountInfo, transactions: [] };
+  }
+
+  extractAccountInfo(lines) {
+    const accountInfo = {
+      accountNumber: null,
+      accountName: null,
+      accountType: null,
+      bankName: null,
+      balance: null
+    };
+
+    for (const line of lines) {
+      // Extract account number
+      if (line.toLowerCase().includes('account:') && !accountInfo.accountNumber) {
+        const accountMatch = line.match(/account:\s*([^,]+)/i);
+        if (accountMatch) {
+          accountInfo.accountNumber = accountMatch[1].trim();
+        }
+      }
+
+      // Extract account name/type
+      if (line.toLowerCase().includes('account:') && line.includes('[') && line.includes(']')) {
+        const typeMatch = line.match(/\[([^\]]+)\]/);
+        if (typeMatch) {
+          accountInfo.accountType = typeMatch[1].trim();
+        }
+      }
+
+      // Extract balance
+      if (line.toLowerCase().includes('balance:') && !accountInfo.balance) {
+        const balanceMatch = line.match(/balance:\s*([+-]?\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+        if (balanceMatch) {
+          accountInfo.balance = parseFloat(balanceMatch[1].replace(/,/g, ''));
+        }
+      }
+
+      // Extract name
+      if (line.toLowerCase().includes('name:') && !accountInfo.accountName) {
+        const nameMatch = line.match(/name:\s*([^,]+)/i);
+        if (nameMatch) {
+          accountInfo.accountName = nameMatch[1].trim();
+        }
+      }
+
+      // Detect bank name from common patterns
+      if (!accountInfo.bankName) {
+        if (line.includes('FNB') || line.includes('First National Bank')) {
+          accountInfo.bankName = 'FNB';
+        } else if (line.includes('ABSA')) {
+          accountInfo.bankName = 'ABSA';
+        } else if (line.includes('Standard Bank')) {
+          accountInfo.bankName = 'Standard Bank';
+        } else if (line.includes('Nedbank')) {
+          accountInfo.bankName = 'Nedbank';
+        } else if (line.includes('Capitec')) {
+          accountInfo.bankName = 'Capitec';
+        }
+      }
+    }
+
+    return accountInfo;
   }
 
   parseStandardFormat(lines) {
@@ -349,10 +416,18 @@ class BankStatementParser {
     return 'Other';
   }
 
-  enhanceTransaction(transaction, bankName) {
+  enhanceTransaction(transaction, bankName, accountInfo) {
     // Add bank-specific enhancements
     if (bankName) {
       transaction.bank = bankName;
+    }
+    
+    // Add account information
+    if (accountInfo) {
+      transaction.accountNumber = accountInfo.accountNumber;
+      transaction.accountName = accountInfo.accountName;
+      transaction.accountType = accountInfo.accountType;
+      transaction.bankName = accountInfo.bankName || bankName;
     }
     
     // Add unique ID

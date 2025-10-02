@@ -363,8 +363,10 @@ class BankStatementParser {
             console.log('🗓️ YYYY/MM/DD - Year:', year, 'Month:', month, 'Day:', day, 'Date:', date);
             if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
               const result = date.toISOString().split('T')[0];
-              console.log('✅ Date result:', result);
+              console.log('✅ YYYY/MM/DD Date result:', result);
               return result;
+            } else {
+              console.log('❌ YYYY/MM/DD date validation failed:', date.getFullYear());
             }
             // If this format matched but date is invalid, don't try other interpretations
             continue;

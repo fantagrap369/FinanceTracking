@@ -13,7 +13,7 @@ class LocalDataService {
           amount: 245.50,
           store: 'Woolworths',
           category: 'Groceries',
-          date: '2024-01-15',
+          date: new Date().toISOString().split('T')[0], // Today
           notes: 'Weekly grocery shopping'
         },
         {
@@ -22,7 +22,7 @@ class LocalDataService {
           amount: 180.00,
           store: 'Shell',
           category: 'Transport',
-          date: '2024-01-14',
+          date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Yesterday
           notes: 'Fuel for car'
         },
         {
@@ -31,8 +31,44 @@ class LocalDataService {
           amount: 320.75,
           store: 'Spur',
           category: 'Dining',
-          date: '2024-01-13',
+          date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 days ago
           notes: 'Family dinner out'
+        },
+        {
+          id: '4',
+          description: 'Pick n Pay',
+          amount: 156.30,
+          store: 'Pick n Pay',
+          category: 'Groceries',
+          date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days ago
+          notes: 'Quick grocery run'
+        },
+        {
+          id: '5',
+          description: 'Engen Fuel',
+          amount: 220.00,
+          store: 'Engen',
+          category: 'Transport',
+          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
+          notes: 'Long drive fuel'
+        },
+        {
+          id: '6',
+          description: 'Checkers',
+          amount: 89.45,
+          store: 'Checkers',
+          category: 'Groceries',
+          date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days ago
+          notes: 'Small shopping'
+        },
+        {
+          id: '7',
+          description: 'McDonald\'s',
+          amount: 65.80,
+          store: 'McDonald\'s',
+          category: 'Dining',
+          date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
+          notes: 'Quick lunch'
         }
       ],
       descriptions: {

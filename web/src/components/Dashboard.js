@@ -6,7 +6,11 @@ import { format, subDays, subMonths } from 'date-fns';
 
 const Dashboard = () => {
   const { expenses, summary, loading, fetchExpenses, fetchSummary } = useExpenses();
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [selectedPeriod, setSelectedPeriod] = useState('7days');
+  const [customDateRange, setCustomDateRange] = useState({
+    start: '',
+    end: ''
+  });
 
   useEffect(() => {
     fetchExpenses();
@@ -20,34 +24,112 @@ const Dashboard = () => {
     }).format(amount);
   };
 
+  const getFilteredExpenses = () => {
+    const now = new Date();
+    let startDate, endDate = now;
+
+    switch (selectedPeriod) {
+      case '7days':
+        startDate = subDays(now, 7);
+        break;
+      case '1month':
+        startDate = subMonths(now, 1);
+        break;
+      case '3months':
+        startDate = subMonths(now, 3);
+        break;
+      case 'custom':
+        if (customDateRange.start && customDateRange.end) {
+          startDate = new Date(customDateRange.start);
+          endDate = new Date(customDateRange.end);
+        } else {
+          startDate = subDays(now, 7);
+        }
+        break;
+      default:
+        startDate = subDays(now, 7);
+    }
+
+    return expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return expenseDate >= startDate && expenseDate <= endDate;
+    });
+  };
+
   const getChartData = () => {
-    const last7Days = [];
-    const today = new Date();
-    
-    for (let i = 6; i >= 0; i--) {
-      const date = subDays(today, i);
-      const dayExpenses = expenses.filter(expense => {
+    const filteredExpenses = getFilteredExpenses();
+    const chartData = [];
+    const now = new Date();
+    let startDate, endDate = now;
+    let intervalDays = 1;
+
+    switch (selectedPeriod) {
+      case '7days':
+        startDate = subDays(now, 7);
+        intervalDays = 1;
+        break;
+      case '1month':
+        startDate = subMonths(now, 1);
+        intervalDays = 2;
+        break;
+      case '3months':
+        startDate = subMonths(now, 3);
+        intervalDays = 7;
+        break;
+      case 'custom':
+        if (customDateRange.start && customDateRange.end) {
+          startDate = new Date(customDateRange.start);
+          endDate = new Date(customDateRange.end);
+          const diffDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+          intervalDays = Math.max(1, Math.floor(diffDays / 20)); // Max 20 data points
+        } else {
+          startDate = subDays(now, 7);
+          intervalDays = 1;
+        }
+        break;
+      default:
+        startDate = subDays(now, 7);
+        intervalDays = 1;
+    }
+
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const periodEnd = new Date(current);
+      periodEnd.setDate(periodEnd.getDate() + intervalDays - 1);
+      if (periodEnd > endDate) periodEnd.setTime(endDate.getTime());
+
+      const periodExpenses = filteredExpenses.filter(expense => {
         const expenseDate = new Date(expense.date);
-        return expenseDate.toDateString() === date.toDateString();
+        return expenseDate >= current && expenseDate <= periodEnd;
       });
       
-      const total = dayExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-      last7Days.push({
-        date: format(date, 'EEE'),
+      const total = periodExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+      
+      chartData.push({
+        date: format(current, intervalDays === 1 ? 'EEE' : 'MMM dd'),
         amount: total,
-        fullDate: format(date, 'MMM dd')
+        fullDate: format(current, 'MMM dd'),
+        count: periodExpenses.length
       });
+
+      current.setDate(current.getDate() + intervalDays);
     }
     
-    return last7Days;
+    return chartData;
   };
 
   const getCategoryData = () => {
-    if (!summary?.categoryBreakdown) return [];
+    const filteredExpenses = getFilteredExpenses();
+    const categoryBreakdown = {};
+    
+    filteredExpenses.forEach(expense => {
+      const category = expense.category || 'Uncategorized';
+      categoryBreakdown[category] = (categoryBreakdown[category] || 0) + expense.amount;
+    });
     
     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
     
-    return Object.entries(summary.categoryBreakdown).map(([category, amount], index) => ({
+    return Object.entries(categoryBreakdown).map(([category, amount], index) => ({
       name: category,
       value: amount,
       color: colors[index % colors.length]
@@ -55,7 +137,7 @@ const Dashboard = () => {
   };
 
   const getRecentExpenses = () => {
-    return expenses
+    return getFilteredExpenses()
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 5);
   };
@@ -108,6 +190,129 @@ const Dashboard = () => {
 
   return (
     <div style={{ padding: '2rem 0' }}>
+      {/* Time Period Selector */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '2rem',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        <h2 style={{ margin: 0, fontSize: '1.875rem', fontWeight: 'bold', color: '#1f2937' }}>
+          Dashboard
+        </h2>
+        
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Time Period Buttons */}
+          <div style={{ display: 'flex', gap: '0.25rem', backgroundColor: '#f3f4f6', padding: '0.25rem', borderRadius: '0.5rem' }}>
+            {[
+              { value: '7days', label: '7 Days' },
+              { value: '1month', label: '1 Month' },
+              { value: '3months', label: '3 Months' }
+            ].map(period => (
+              <button
+                key={period.value}
+                onClick={() => setSelectedPeriod(period.value)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.375rem',
+                  border: 'none',
+                  backgroundColor: selectedPeriod === period.value ? '#3b82f6' : 'transparent',
+                  color: selectedPeriod === period.value ? 'white' : '#6b7280',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontSize: '0.875rem'
+                }}
+                onMouseOver={(e) => {
+                  if (selectedPeriod !== period.value) {
+                    e.target.style.backgroundColor = '#e5e7eb';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (selectedPeriod !== period.value) {
+                    e.target.style.backgroundColor = 'transparent';
+                  }
+                }}
+              >
+                {period.label}
+              </button>
+            ))}
+          </div>
+          
+          {/* Custom Date Range */}
+          <button
+            onClick={() => setSelectedPeriod('custom')}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: selectedPeriod === 'custom' ? '2px solid #3b82f6' : '1px solid #d1d5db',
+              backgroundColor: selectedPeriod === 'custom' ? '#dbeafe' : 'white',
+              color: selectedPeriod === 'custom' ? '#1e40af' : '#374151',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '0.875rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <Calendar size={16} />
+            Custom
+          </button>
+        </div>
+      </div>
+
+      {/* Custom Date Range Inputs */}
+      {selectedPeriod === 'custom' && (
+        <div style={{ 
+          display: 'flex', 
+          gap: '1rem', 
+          marginBottom: '2rem',
+          padding: '1rem',
+          backgroundColor: '#f9fafb',
+          borderRadius: '0.5rem',
+          border: '1px solid #e5e7eb',
+          flexWrap: 'wrap',
+          alignItems: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+              From:
+            </label>
+            <input
+              type="date"
+              value={customDateRange.start}
+              onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem'
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: '500', color: '#374151' }}>
+              To:
+            </label>
+            <input
+              type="date"
+              value={customDateRange.end}
+              onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+              style={{
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem'
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div style={{ 
         display: 'grid', 
@@ -133,15 +338,18 @@ const Dashboard = () => {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280', fontWeight: '500' }}>
-                This Month
+                {selectedPeriod === '7days' ? 'Last 7 Days' : 
+                 selectedPeriod === '1month' ? 'Last Month' :
+                 selectedPeriod === '3months' ? 'Last 3 Months' :
+                 selectedPeriod === 'custom' ? 'Custom Period' : 'Selected Period'}
               </h3>
               <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
-                {formatCurrency(summary?.thisMonth?.total || 0)}
+                {formatCurrency(getFilteredExpenses().reduce((sum, expense) => sum + expense.amount, 0))}
               </p>
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
-            {summary?.thisMonth?.count || 0} transactions
+            {getFilteredExpenses().length} transactions
           </p>
         </div>
 
@@ -163,15 +371,16 @@ const Dashboard = () => {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280', fontWeight: '500' }}>
-                Last Month
+                Average Transaction
               </h3>
               <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
-                {formatCurrency(summary?.lastMonth?.total || 0)}
+                {formatCurrency(getFilteredExpenses().length > 0 ? 
+                  getFilteredExpenses().reduce((sum, expense) => sum + expense.amount, 0) / getFilteredExpenses().length : 0)}
               </p>
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
-            {summary?.lastMonth?.count || 0} transactions
+            {getFilteredExpenses().length} transactions
           </p>
         </div>
 
@@ -197,20 +406,22 @@ const Dashboard = () => {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280', fontWeight: '500' }}>
-                Change
+                Highest Day
               </h3>
               <p style={{ 
                 margin: 0, 
                 fontSize: '2rem', 
                 fontWeight: 'bold', 
-                color: summary?.change >= 0 ? '#ef4444' : '#22c55e'
+                color: '#1f2937'
               }}>
-                {summary?.change >= 0 ? '+' : ''}{summary?.change?.toFixed(1) || 0}%
+                {formatCurrency(Math.max(...getChartData().map(d => d.amount), 0))}
               </p>
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
-            from last month
+            {getChartData().length > 0 ? 
+              getChartData().find(d => d.amount === Math.max(...getChartData().map(d => d.amount)))?.fullDate || 'N/A' : 
+              'No data'}
           </p>
         </div>
       </div>

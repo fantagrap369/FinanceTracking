@@ -394,9 +394,15 @@ const BankStatementUpload = () => {
     if (newCategory.trim() && !availableCategories.includes(newCategory.trim())) {
       const categoryToAdd = newCategory.trim();
       availableCategories.push(categoryToAdd);
+      
+      // Set the current transaction to use the new category
+      if (editingCategoryForTransaction) {
+        handleCategoryChange(editingCategoryForTransaction, categoryToAdd);
+      }
+      
       setNewCategory('');
       setEditingCategoryForTransaction(null);
-      console.log(`✅ Added new category: "${categoryToAdd}"`);
+      console.log(`✅ Added new category: "${categoryToAdd}" and applied to transaction`);
     }
   };
 

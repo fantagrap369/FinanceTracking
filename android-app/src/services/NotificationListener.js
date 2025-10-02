@@ -4,7 +4,7 @@ import DescriptionLearner from './DescriptionLearner';
 import AIParser from './AIParser';
 import FailedParsingManager from './FailedParsingManager';
 
-const { NotificationListener } = NativeModules;
+const { NotificationListener: NotificationListenerModule } = NativeModules;
 
 class NotificationListener {
   constructor() {
@@ -14,10 +14,10 @@ class NotificationListener {
 
   startListening() {
     try {
-      if (NotificationListener) {
+      if (NotificationListenerModule) {
         // Use the actual native module
-        NotificationListener.startListening();
-        this.eventEmitter = new NativeEventEmitter(NotificationListener);
+        NotificationListenerModule.startListening();
+        this.eventEmitter = new NativeEventEmitter(NotificationListenerModule);
         this.eventEmitter.addListener('NotificationReceived', this.handleNotificationReceived.bind(this));
         console.log('Notification listener started (native)');
       } else {
@@ -38,8 +38,8 @@ class NotificationListener {
       this.eventEmitter.removeAllListeners();
       this.eventEmitter = null;
     }
-    if (NotificationListener) {
-      NotificationListener.stopListening();
+    if (NotificationListenerModule) {
+      NotificationListenerModule.stopListening();
     }
     this.isListening = false;
     console.log('Notification listener stopped');

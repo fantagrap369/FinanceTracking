@@ -5,13 +5,13 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const DATA_FILE = path.join(__dirname, 'data', 'expenses.json');
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, '../web/dist')));
+app.use(express.static(path.join(__dirname, '../web/build')));
 
 // Ensure data directory exists
 fs.ensureDirSync(path.dirname(DATA_FILE));
@@ -165,7 +165,7 @@ app.get('/api/summary', (req, res) => {
 
 // Serve React app for all other routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../web/dist/index.html'));
+  res.sendFile(path.join(__dirname, '../web/build/index.html'));
 });
 
 app.listen(PORT, () => {

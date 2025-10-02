@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';navigator
 import LocalDataService from '../services/LocalDataService';
 
 const ExpenseContext = createContext();
@@ -20,39 +20,36 @@ export const ExpenseProvider = ({ children }) => {
   const [dataSource, setDataSource] = useState('local'); // 'local' or 'phone'
 
   // Fetch all expenses
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     try {
-      setLoading(true);
       const data = await LocalDataService.getExpenses();
       setExpenses(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch expenses from local files');
       console.error('Error fetching expenses:', err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch categories
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const data = await LocalDataService.getCategories();
       setCategories(data);
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
-  };
+  }, []);
 
   // Fetch spending summary
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const data = await LocalDataService.getSpendingSummary();
       setSummary(data);
     } catch (err) {
       console.error('Error fetching summary:', err);
     }
-  };
+  }, []);
 
   // Add new expense
   const addExpense = async (expense) => {
@@ -208,7 +205,7 @@ export const ExpenseProvider = ({ children }) => {
   };
 
   // Refresh all data
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       setLoading(true);
       await Promise.all([
@@ -223,7 +220,7 @@ export const ExpenseProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchExpenses, fetchCategories, fetchSummary]);
 
   // Clear error
   const clearError = () => {
@@ -238,7 +235,7 @@ export const ExpenseProvider = ({ children }) => {
   // Load initial data
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [refreshData]);
 
   const value = {
     // State

@@ -3,29 +3,96 @@
 
 class LocalDataService {
   constructor() {
-    this.baseUrl = '/api'; // Will be proxied to Express server
+    // For development, we'll use sample data
+    // In production, this would read from actual JSON files
+    this.sampleData = {
+      expenses: [
+        {
+          id: '1',
+          description: 'Woolworths Groceries',
+          amount: 245.50,
+          store: 'Woolworths',
+          category: 'Groceries',
+          date: '2024-01-15',
+          notes: 'Weekly grocery shopping'
+        },
+        {
+          id: '2',
+          description: 'Petrol Station',
+          amount: 180.00,
+          store: 'Shell',
+          category: 'Transport',
+          date: '2024-01-14',
+          notes: 'Fuel for car'
+        },
+        {
+          id: '3',
+          description: 'Restaurant Dinner',
+          amount: 320.75,
+          store: 'Spur',
+          category: 'Dining',
+          date: '2024-01-13',
+          notes: 'Family dinner out'
+        }
+      ],
+      descriptions: {
+        'Woolworths': {
+          description: 'Woolworths Groceries',
+          category: 'Groceries',
+          count: 1
+        },
+        'Shell': {
+          description: 'Petrol Station',
+          category: 'Transport',
+          count: 1
+        },
+        'Spur': {
+          description: 'Restaurant Dinner',
+          category: 'Dining',
+          count: 1
+        }
+      }
+    };
   }
 
-  // Helper method to make API calls
+  // Helper method to simulate async file operations
   async makeRequest(endpoint, options = {}) {
-    try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        ...options,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
-      throw error;
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    switch (endpoint) {
+      case '/expenses':
+        return this.sampleData.expenses;
+      case '/descriptions':
+        return this.sampleData.descriptions;
+      case '/categories':
+        return ['Groceries', 'Transport', 'Dining', 'Entertainment', 'Utilities'];
+      case '/summary':
+        return this.calculateSummary();
+      default:
+        console.error(`Unknown endpoint: ${endpoint}`);
+        return null;
     }
+  }
+
+  calculateSummary() {
+    const expenses = this.sampleData.expenses;
+    const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const thisMonth = expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      const now = new Date();
+      return expenseDate.getMonth() === now.getMonth() && 
+             expenseDate.getFullYear() === now.getFullYear();
+    });
+    const thisMonthTotal = thisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    
+    return {
+      totalExpenses: total,
+      thisMonthTotal: thisMonthTotal,
+      totalTransactions: expenses.length,
+      thisMonthTransactions: thisMonth.length,
+      averageTransaction: expenses.length > 0 ? total / expenses.length : 0
+    };
   }
 
   // Get all expenses
@@ -376,4 +443,5 @@ class LocalDataService {
   }
 }
 
-export default new LocalDataService();
+const localDataService = new LocalDataService();
+export default localDataService;

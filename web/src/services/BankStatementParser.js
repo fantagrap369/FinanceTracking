@@ -81,7 +81,7 @@ class BankStatementParser {
     for (const line of lines) {
       // Extract account number
       if (line.toLowerCase().includes('account:') && !accountInfo.accountNumber) {
-        const accountMatch = line.match(/account:\s*([^,]+)/i);
+        const accountMatch = line.match(/account:\s*([^,\[\]]+)/i);
         if (accountMatch) {
           accountInfo.accountNumber = accountMatch[1].trim();
         }
@@ -132,7 +132,8 @@ class BankStatementParser {
 
   parseStandardFormat(lines) {
     const transactions = [];
-    const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
+    // Prioritize YYYY/MM/DD format first, then fallback to other formats
+    const datePattern = /(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})|(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
     const amountPattern = /([+-]?R?\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
     
     for (let i = 0; i < lines.length; i++) {
@@ -318,7 +319,11 @@ class BankStatementParser {
           
           // For YYYY/MM/DD format (FNB), use directly
           if (format.source.includes('\\d{4}.*\\d{1,2}.*\\d{1,2}')) {
-            const date = new Date(`${part1}/${part2}/${part3}`);
+            const year = parseInt(part1);
+            const month = parseInt(part2) - 1; // JavaScript months are 0-indexed
+            const day = parseInt(part3);
+            const date = new Date(year, month, day);
+            console.log(`Parsing YYYY/MM/DD: ${dateStr} -> ${year}/${month + 1}/${day} -> ${date.toISOString().split('T')[0]}`);
             if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
               return date.toISOString().split('T')[0];
             }

@@ -102,35 +102,41 @@ class BankStatementParser {
   parseCSVFormat(lines) {
     const transactions = [];
     
-    // Look for CSV header row
+    // Look for CSV header row with "Date, Amount, Balance, Description"
     const headerIndex = lines.findIndex(line => 
       line.toLowerCase().includes('date') && 
-      line.toLowerCase().includes('amount')
+      line.toLowerCase().includes('amount') &&
+      line.toLowerCase().includes('description')
     );
     
     if (headerIndex === -1) return transactions;
     
-    const dataLines = lines.slice(headerIndex + 1);
+    const dataLines = lines.slice(headerIndex + 1).filter(line => line.trim());
     
     for (const line of dataLines) {
       const columns = line.split(',').map(col => col.trim().replace(/"/g, ''));
       
-      if (columns.length >= 2) {
-        const date = this.parseDate(columns[0]);
-        const amount = this.parseAmount(columns[1]);
+      if (columns.length >= 4) {
+        const [dateStr, amountStr, balanceStr, ...descriptionParts] = columns;
+        const date = this.parseDate(dateStr);
+        const amount = this.parseAmount(amountStr);
         
         if (date && amount !== null && amount !== 0) {
-          const description = columns.slice(2).join(' ').trim();
+          const description = descriptionParts.join(' ').trim();
           
           if (description) {
+            // Only include expenses (negative amounts) or positive amounts for income
+            const isExpense = amount < 0;
+            
             transactions.push({
               date: date,
               amount: Math.abs(amount),
               description: description,
               store: this.extractStoreName(description),
               category: this.categorizeTransaction(description),
-              notes: `Imported from CSV bank statement`,
+              notes: `Imported from CSV bank statement${isExpense ? '' : ' (Income)'}`,
               isImported: true,
+              isIncome: !isExpense,
               originalLine: line
             });
           }
@@ -229,9 +235,9 @@ class BankStatementParser {
     try {
       // Handle different date formats
       const formats = [
+        /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,  // YYYY/MM/DD (FNB format)
         /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/, // MM/DD/YYYY or DD/MM/YYYY
         /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})/,  // MM/DD/YY or DD/MM/YY
-        /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,  // YYYY/MM/DD
       ];
       
       for (const format of formats) {
@@ -243,7 +249,15 @@ class BankStatementParser {
             part3 = '20' + part3;
           }
           
-          // Try different date interpretations
+          // For YYYY/MM/DD format (FNB), use directly
+          if (format.source.includes('\\d{4}.*\\d{1,2}.*\\d{1,2}')) {
+            const date = new Date(`${part1}/${part2}/${part3}`);
+            if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
+              return date.toISOString().split('T')[0];
+            }
+          }
+          
+          // Try different date interpretations for other formats
           const date1 = new Date(`${part1}/${part2}/${part3}`);
           const date2 = new Date(`${part2}/${part1}/${part3}`);
           const date3 = new Date(`${part3}/${part1}/${part2}`);

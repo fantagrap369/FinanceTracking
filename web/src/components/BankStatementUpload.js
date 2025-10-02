@@ -159,6 +159,18 @@ const BankStatementUpload = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const getCategoryColor = (category) => {
+    const colors = {
+      'Food': '#ef4444',
+      'Transport': '#3b82f6',
+      'Shopping': '#8b5cf6',
+      'Bills': '#f59e0b',
+      'Entertainment': '#10b981',
+      'Other': '#6b7280'
+    };
+    return colors[category] || '#6b7280';
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'uploaded':
@@ -379,9 +391,36 @@ const BankStatementUpload = () => {
             alignItems: 'center', 
             marginBottom: '1rem' 
           }}>
-            <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
-              Extracted Transactions ({extractedTransactions.length})
-            </h3>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
+                Extracted Transactions ({extractedTransactions.length})
+              </h3>
+              {extractedTransactions.length > 0 && (
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1.5rem', 
+                  marginTop: '0.5rem',
+                  fontSize: '0.875rem',
+                  color: '#6b7280'
+                }}>
+                  <span>
+                    <strong style={{ color: '#ef4444' }}>
+                      {extractedTransactions.filter(t => !t.isIncome).length}
+                    </strong> expenses
+                  </span>
+                  <span>
+                    <strong style={{ color: '#10b981' }}>
+                      {extractedTransactions.filter(t => t.isIncome).length}
+                    </strong> income
+                  </span>
+                  <span>
+                    Total: <strong style={{ color: '#1f2937' }}>
+                      R{extractedTransactions.reduce((sum, t) => sum + (t.isIncome ? t.amount : -t.amount), 0).toFixed(2)}
+                    </strong>
+                  </span>
+                </div>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 onClick={() => setShowPreview(!showPreview)}
@@ -425,32 +464,187 @@ const BankStatementUpload = () => {
           
           {showPreview && (
             <div style={{ 
-              maxHeight: '400px', 
+              maxHeight: '500px', 
               overflowY: 'auto',
               border: '1px solid #e5e7eb',
-              borderRadius: '0.5rem'
+              borderRadius: '0.5rem',
+              backgroundColor: 'white'
             }}>
-              {extractedTransactions.map((transaction, index) => (
-                <div key={transaction.id} style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  padding: '0.75rem 1rem',
-                  borderBottom: index < extractedTransactions.length - 1 ? '1px solid #f3f4f6' : 'none'
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                fontSize: '0.875rem'
+              }}>
+                <thead style={{ 
+                  backgroundColor: '#f8fafc',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10
                 }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: '500', color: '#1f2937' }}>
-                      {transaction.description}
-                    </p>
-                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#6b7280' }}>
-                      {transaction.store} • {transaction.date}
-                    </p>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.875rem', fontWeight: '600', color: '#1f2937' }}>
-                    R{transaction.amount.toFixed(2)}
-                  </p>
-                </div>
-              ))}
+                  <tr>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Date
+                    </th>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Description
+                    </th>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Store
+                    </th>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'left', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Category
+                    </th>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'right', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Amount
+                    </th>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'center', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Type
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extractedTransactions.map((transaction, index) => (
+                    <tr key={transaction.id} style={{ 
+                      backgroundColor: index % 2 === 0 ? 'white' : '#f8fafc',
+                      borderBottom: index < extractedTransactions.length - 1 ? '1px solid #f3f4f6' : 'none'
+                    }}>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        color: '#6b7280',
+                        fontSize: '0.875rem',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {new Date(transaction.date).toLocaleDateString('en-ZA', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: '2-digit'
+                        })}
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        color: '#1f2937',
+                        fontSize: '0.875rem',
+                        maxWidth: '300px'
+                      }}>
+                        <div style={{ 
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {transaction.description}
+                        </div>
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        color: '#6b7280',
+                        fontSize: '0.875rem',
+                        maxWidth: '150px'
+                      }}>
+                        <div style={{ 
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {transaction.store}
+                        </div>
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        fontSize: '0.875rem'
+                      }}>
+                        <span style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: this.getCategoryColor(transaction.category) + '20',
+                          color: this.getCategoryColor(transaction.category),
+                          borderRadius: '0.25rem',
+                          fontSize: '0.75rem',
+                          fontWeight: '500'
+                        }}>
+                          {transaction.category}
+                        </span>
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        textAlign: 'right',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        color: transaction.isIncome ? '#10b981' : '#1f2937'
+                      }}>
+                        {transaction.isIncome ? '+' : '-'}R{transaction.amount.toFixed(2)}
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        textAlign: 'center',
+                        fontSize: '0.75rem'
+                      }}>
+                        <span style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: transaction.isIncome ? '#10b981' : '#3b82f6',
+                          color: 'white',
+                          borderRadius: '0.25rem',
+                          fontWeight: '500'
+                        }}>
+                          {transaction.isIncome ? 'Income' : 'Expense'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

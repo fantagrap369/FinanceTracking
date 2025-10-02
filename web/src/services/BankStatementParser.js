@@ -44,24 +44,40 @@ class BankStatementParser {
     const accountInfo = this.extractAccountInfo(lines);
     
     // Try different parsing strategies
-    const strategies = [
+    // Check if this looks like CSV format first
+    const hasCSVHeader = lines.some(line => 
+      line.toLowerCase().includes('date') && 
+      line.toLowerCase().includes('amount') && 
+      line.toLowerCase().includes('description')
+    );
+    
+    const strategies = hasCSVHeader ? [
+      () => this.parseCSVFormat(lines),
+      () => this.parseStandardFormat(lines),
+      () => this.parseTableFormat(lines),
+      () => this.parseGenericFormat(lines)
+    ] : [
       () => this.parseStandardFormat(lines),
       () => this.parseCSVFormat(lines),
       () => this.parseTableFormat(lines),
       () => this.parseGenericFormat(lines)
     ];
     
-    for (const strategy of strategies) {
+    for (let i = 0; i < strategies.length; i++) {
       try {
-        const result = strategy();
+        console.log(`Trying parsing strategy ${i + 1}/${strategies.length}`);
+        const result = strategies[i]();
         if (result.length > 0) {
+          console.log(`✅ Strategy ${i + 1} succeeded with ${result.length} transactions`);
           return {
             accountInfo,
             transactions: result.map(tx => this.enhanceTransaction(tx, bankName, accountInfo))
           };
+        } else {
+          console.log(`❌ Strategy ${i + 1} returned 0 transactions`);
         }
       } catch (error) {
-        console.warn('Parsing strategy failed:', error);
+        console.warn(`❌ Strategy ${i + 1} failed:`, error);
         continue;
       }
     }
@@ -215,18 +231,17 @@ class BankStatementParser {
           // Only include expenses (negative amounts) or positive amounts for income
           const isExpense = amount < 0;
             
-            transactions.push({
-              date: date,
-              amount: Math.abs(amount),
-              description: description,
-              store: this.extractStoreName(description),
-              category: this.categorizeTransaction(description),
-              notes: `Imported from CSV bank statement${isExpense ? '' : ' (Income)'}`,
-              isImported: true,
-              isIncome: !isExpense,
-              originalLine: line
-            });
-          }
+          transactions.push({
+            date: date,
+            amount: Math.abs(amount),
+            description: description,
+            store: this.extractStoreName(description),
+            category: this.categorizeTransaction(description),
+            notes: `Imported from CSV bank statement${isExpense ? '' : ' (Income)'}`,
+            isImported: true,
+            isIncome: !isExpense,
+            originalLine: line
+          });
         }
       }
     }
@@ -345,6 +360,8 @@ class BankStatementParser {
             if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
               return date.toISOString().split('T')[0];
             }
+            // If this format matched but date is invalid, don't try other interpretations
+            continue;
           }
           
           // Try different date interpretations for other formats

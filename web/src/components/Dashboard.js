@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Label, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Receipt, Calendar, CreditCard } from 'lucide-react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Label, Legend } from 'recharts';
+import { TrendingUp, TrendingDown, DollarSign, Receipt, Calendar } from 'lucide-react';
 import { useExpenses } from '../context/ExpenseContext';
 import { format, subDays, subMonths } from 'date-fns';
 
@@ -142,27 +142,6 @@ const Dashboard = () => {
       .slice(0, 5);
   };
 
-  const getMonthlyData = () => {
-    const last6Months = [];
-    const today = new Date();
-    
-    for (let i = 5; i >= 0; i--) {
-      const month = subMonths(today, i);
-      const monthExpenses = expenses.filter(expense => {
-        const expenseDate = new Date(expense.date);
-        return expenseDate.getMonth() === month.getMonth() && 
-               expenseDate.getFullYear() === month.getFullYear();
-      });
-      
-      const total = monthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-      last6Months.push({
-        month: format(month, 'MMM'),
-        amount: total
-      });
-    }
-    
-    return last6Months;
-  };
 
   if (loading) {
     return (
@@ -498,18 +477,24 @@ const Dashboard = () => {
             Spending by Category
           </h3>
           {getCategoryData().length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
                   data={getCategoryData()}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={80}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
+                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                  labelLine={true}
+                  labelLineStyle={{ stroke: '#6b7280', strokeWidth: 1 }}
+                  labelStyle={{ 
+                    fontSize: '0.75rem', 
+                    fontWeight: '500',
+                    fill: '#374151'
+                  }}
                 >
                   {getCategoryData().map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -526,9 +511,9 @@ const Dashboard = () => {
                 />
                 <Legend 
                   verticalAlign="bottom" 
-                  height={36}
+                  height={50}
                   formatter={(value, entry) => (
-                    <span style={{ color: entry.color, fontSize: '0.875rem' }}>
+                    <span style={{ color: entry.color, fontSize: '0.875rem', fontWeight: '500' }}>
                       {value}
                     </span>
                   )}

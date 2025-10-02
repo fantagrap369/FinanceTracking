@@ -354,8 +354,8 @@ class BankStatementParser {
             part3 = '20' + part3;
           }
           
-          // For YYYY/MM/DD format (FNB), use directly
-          if (format.source.includes('\\d{4}.*\\d{1,2}.*\\d{1,2}')) {
+          // For YYYY/MM/DD format (FNB), use directly - check if first part is 4 digits
+          if (part1.length === 4) {
             const year = parseInt(part1);
             const month = parseInt(part2) - 1; // JavaScript months are 0-indexed
             const day = parseInt(part3);

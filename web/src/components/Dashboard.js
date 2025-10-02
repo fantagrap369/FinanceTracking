@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Label, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Receipt, Calendar, CreditCard } from 'lucide-react';
 import { useExpenses } from '../context/ExpenseContext';
 import { format, subDays, subMonths } from 'date-fns';
@@ -106,9 +106,9 @@ const Dashboard = () => {
       const total = periodExpenses.reduce((sum, expense) => sum + expense.amount, 0);
       
       chartData.push({
-        date: format(current, intervalDays === 1 ? 'EEE' : 'MMM dd'),
+        date: format(current, intervalDays === 1 ? 'EEE dd' : 'MMM dd'),
         amount: total,
-        fullDate: format(current, 'MMM dd'),
+        fullDate: format(current, 'MMM dd, yyyy'),
         count: periodExpenses.length
       });
 
@@ -442,13 +442,28 @@ const Dashboard = () => {
           border: '1px solid #e5e7eb'
         }}>
           <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
-            Last 7 Days
+            {selectedPeriod === '7days' ? 'Last 7 Days' : 
+             selectedPeriod === '1month' ? 'Last Month' :
+             selectedPeriod === '3months' ? 'Last 3 Months' :
+             selectedPeriod === 'custom' ? 'Custom Period' : 'Spending Trend'}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={getChartData()}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="date" stroke="#6b7280" />
-              <YAxis stroke="#6b7280" />
+              <XAxis 
+                dataKey="date" 
+                stroke="#6b7280" 
+                tick={{ fontSize: 12 }}
+                interval={0}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+              />
+              <YAxis 
+                stroke="#6b7280" 
+                tick={{ fontSize: 12 }}
+                tickFormatter={(value) => `R${value}`}
+              />
               <Tooltip 
                 formatter={(value) => [formatCurrency(value), 'Amount']}
                 labelFormatter={(label) => `Date: ${label}`}
@@ -493,19 +508,30 @@ const Dashboard = () => {
                   outerRadius={100}
                   paddingAngle={5}
                   dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
                 >
                   {getCategoryData().map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip 
-                  formatter={(value) => [formatCurrency(value), 'Amount']}
+                  formatter={(value, name) => [formatCurrency(value), name]}
                   contentStyle={{
                     backgroundColor: 'white',
                     border: '1px solid #e5e7eb',
                     borderRadius: '0.5rem',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                   }}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  formatter={(value, entry) => (
+                    <span style={{ color: entry.color, fontSize: '0.875rem' }}>
+                      {value}
+                    </span>
+                  )}
                 />
               </PieChart>
             </ResponsiveContainer>

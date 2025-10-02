@@ -304,7 +304,7 @@ const BankStatementUpload = () => {
         updated[accountKey] = {
           ...updated[accountKey],
           transactions: updated[accountKey].transactions.map(tx =>
-            transactionsToUpdate.includes(tx.id)
+            tx.id === transactionId
               ? { ...tx, category: newCategory }
               : tx
           )
@@ -312,11 +312,6 @@ const BankStatementUpload = () => {
       });
       return updated;
     });
-
-    // Show notification about similar transactions updated
-    if (similarTransactions.length > 0) {
-      console.log(`✅ Updated ${similarTransactions.length} similar transactions to category "${newCategory}"`);
-    }
   };
 
   // Handle transaction field updates (description, store, etc.)

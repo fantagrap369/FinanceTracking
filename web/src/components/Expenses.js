@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Edit, Trash2, Calendar, DollarSign, Store, Tag } from 'lucide-react';
+import { Search, Filter, Edit, Trash2, Calendar, DollarSign, Store, Tag, Repeat, AlertTriangle } from 'lucide-react';
 import { useExpenses } from '../context/ExpenseContext';
 import { format } from 'date-fns';
 
@@ -356,6 +356,22 @@ const Expenses = () => {
                       <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#1f2937' }}>
                         {expense.description}
                       </h3>
+                      {expense.isRecurring && (
+                        <div style={{
+                          marginLeft: '0.5rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#fef3c7',
+                          color: '#d97706',
+                          fontSize: '0.75rem',
+                          fontWeight: '500',
+                          borderRadius: '0.25rem'
+                        }}>
+                          <Repeat size={12} style={{ marginRight: '0.25rem' }} />
+                          {expense.recurringType}
+                        </div>
+                      )}
                       <span style={{
                         marginLeft: '0.75rem',
                         padding: '0.25rem 0.5rem',
@@ -386,9 +402,21 @@ const Expenses = () => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#1f2937' }}>
-                    {formatCurrency(expense.amount)}
-                  </p>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#1f2937' }}>
+                      {formatCurrency(expense.amount)}
+                    </p>
+                    {expense.isRecurring && expense.expectedAmount && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                          Expected: {formatCurrency(expense.expectedAmount)}
+                        </span>
+                        {Math.abs(expense.amount - expense.expectedAmount) > 0.01 && (
+                          <AlertTriangle size={12} color="#ef4444" />
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: '0.25rem' }}>
                     <button
                       onClick={() => handleEditExpense(expense)}

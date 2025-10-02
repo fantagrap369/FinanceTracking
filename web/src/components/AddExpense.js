@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { DollarSign, Store, Tag, FileText, Plus, X } from 'lucide-react';
+import { DollarSign, Store, Tag, FileText, Plus, X, Calendar, Repeat } from 'lucide-react';
 import { useExpenses } from '../context/ExpenseContext';
+import { format } from 'date-fns';
 
 const AddExpense = () => {
   const { addExpense } = useExpenses();
@@ -10,6 +11,10 @@ const AddExpense = () => {
     store: '',
     category: '',
     notes: '',
+    date: format(new Date(), 'yyyy-MM-dd'), // Default to today
+    isRecurring: false,
+    recurringType: 'monthly', // monthly, weekly, yearly
+    expectedAmount: '',
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -22,6 +27,13 @@ const AddExpense = () => {
     { amount: '350.00', store: 'Shell', description: 'Petrol', category: 'Transport' },
     { amount: '85.00', store: 'Nando\'s', description: 'Fast Food', category: 'Food' },
     { amount: '1500.00', store: 'Eskom', description: 'Electricity Bill', category: 'Bills' },
+  ];
+
+  const recurringExamples = [
+    { amount: '1200.00', store: 'Rent', description: 'Monthly Rent', category: 'Bills', expectedAmount: '1200.00' },
+    { amount: '450.00', store: 'Gym Membership', description: 'Monthly Gym Fee', category: 'Bills', expectedAmount: '450.00' },
+    { amount: '89.00', store: 'Netflix', description: 'Streaming Service', category: 'Entertainment', expectedAmount: '89.00' },
+    { amount: '2500.00', store: 'Car Payment', description: 'Vehicle Finance', category: 'Transport', expectedAmount: '2500.00' },
   ];
 
   const handleChange = (field, value) => {
@@ -46,6 +58,25 @@ const AddExpense = () => {
       store: example.store,
       category: example.category,
       notes: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      isRecurring: false,
+      recurringType: 'monthly',
+      expectedAmount: '',
+    });
+    setErrors({});
+  };
+
+  const handleRecurringAdd = (example) => {
+    setFormData({
+      description: example.description,
+      amount: example.amount,
+      store: example.store,
+      category: example.category,
+      notes: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      isRecurring: true,
+      recurringType: 'monthly',
+      expectedAmount: example.expectedAmount,
     });
     setErrors({});
   };
@@ -70,6 +101,17 @@ const AddExpense = () => {
     if (!formData.category) {
       newErrors.category = 'Please select a category';
     }
+    if (!formData.date) {
+      newErrors.date = 'Date is required';
+    }
+    if (formData.isRecurring && !formData.expectedAmount.trim()) {
+      newErrors.expectedAmount = 'Expected amount is required for recurring expenses';
+    } else if (formData.isRecurring && formData.expectedAmount.trim()) {
+      const expectedAmount = parseFloat(formData.expectedAmount);
+      if (isNaN(expectedAmount) || expectedAmount <= 0) {
+        newErrors.expectedAmount = 'Please enter a valid expected amount';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -89,6 +131,10 @@ const AddExpense = () => {
         store: formData.store.trim(),
         category: formData.category,
         notes: formData.notes.trim(),
+        date: formData.date,
+        isRecurring: formData.isRecurring,
+        recurringType: formData.recurringType,
+        expectedAmount: formData.isRecurring ? parseFloat(formData.expectedAmount) : null,
       };
 
       await addExpense(expense);
@@ -100,6 +146,10 @@ const AddExpense = () => {
         store: '',
         category: '',
         notes: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        isRecurring: false,
+        recurringType: 'monthly',
+        expectedAmount: '',
       });
       
       alert('Expense added successfully!');
@@ -119,6 +169,10 @@ const AddExpense = () => {
         store: '',
         category: '',
         notes: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        isRecurring: false,
+        recurringType: 'monthly',
+        expectedAmount: '',
       });
       setErrors({});
     }
@@ -146,7 +200,7 @@ const AddExpense = () => {
         marginBottom: '1.5rem'
       }}>
         <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
-          Quick Add
+          Quick Add - One-time Expenses
         </h3>
         <div style={{ 
           display: 'grid', 
@@ -183,6 +237,63 @@ const AddExpense = () => {
               </div>
               <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                 {example.description}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Recurring Examples */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '1.5rem', 
+        borderRadius: '0.75rem', 
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+        border: '1px solid #e5e7eb',
+        marginBottom: '1.5rem'
+      }}>
+        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
+          <Repeat size={20} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+          Recurring Expenses (Debit Orders)
+        </h3>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '1rem' 
+        }}>
+          {recurringExamples.map((example, index) => (
+            <button
+              key={index}
+              onClick={() => handleRecurringAdd(example)}
+              style={{
+                padding: '1rem',
+                backgroundColor: '#fef3c7',
+                border: '1px solid #f59e0b',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#fde68a';
+                e.target.style.borderColor = '#d97706';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#fef3c7';
+                e.target.style.borderColor = '#f59e0b';
+              }}
+            >
+              <div style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1f2937', marginBottom: '0.25rem' }}>
+                R{example.amount}
+              </div>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                {example.store}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.25rem' }}>
+                {example.description}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: '500' }}>
+                Expected: R{example.expectedAmount}
               </div>
             </button>
           ))}
@@ -310,6 +421,39 @@ const AddExpense = () => {
               )}
             </div>
 
+            {/* Date */}
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '0.5rem' 
+              }}>
+                <Calendar size={16} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                Date *
+              </label>
+              <input
+                type="date"
+                value={formData.date}
+                onChange={(e) => handleChange('date', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: `1px solid ${errors.date ? '#ef4444' : '#d1d5db'}`,
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  backgroundColor: errors.date ? '#fef2f2' : 'white'
+                }}
+              />
+              {errors.date && (
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#ef4444' }}>
+                  {errors.date}
+                </p>
+              )}
+            </div>
+
             {/* Category */}
             <div>
               <label style={{ 
@@ -354,6 +498,118 @@ const AddExpense = () => {
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Recurring Expense Section */}
+          <div style={{ 
+            backgroundColor: '#fef3c7', 
+            padding: '1.5rem', 
+            borderRadius: '0.75rem', 
+            border: '1px solid #f59e0b',
+            marginBottom: '1.5rem'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              marginBottom: '1rem' 
+            }}>
+              <input
+                type="checkbox"
+                id="isRecurring"
+                checked={formData.isRecurring}
+                onChange={(e) => handleChange('isRecurring', e.target.checked)}
+                style={{ 
+                  marginRight: '0.5rem',
+                  transform: 'scale(1.2)'
+                }}
+              />
+              <label 
+                htmlFor="isRecurring"
+                style={{ 
+                  fontSize: '1rem', 
+                  fontWeight: '600', 
+                  color: '#1f2937',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <Repeat size={20} style={{ marginRight: '0.5rem' }} />
+                This is a recurring expense (debit order)
+              </label>
+            </div>
+
+            {formData.isRecurring && (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                gap: '1rem' 
+              }}>
+                {/* Recurring Type */}
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151', 
+                    marginBottom: '0.5rem' 
+                  }}>
+                    Frequency
+                  </label>
+                  <select
+                    value={formData.recurringType}
+                    onChange={(e) => handleChange('recurringType', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      backgroundColor: 'white'
+                    }}
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+
+                {/* Expected Amount */}
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151', 
+                    marginBottom: '0.5rem' 
+                  }}>
+                    Expected Amount (R) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.expectedAmount}
+                    onChange={(e) => handleChange('expectedAmount', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: `1px solid ${errors.expectedAmount ? '#ef4444' : '#d1d5db'}`,
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      backgroundColor: errors.expectedAmount ? '#fef2f2' : 'white'
+                    }}
+                  />
+                  {errors.expectedAmount && (
+                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#ef4444' }}>
+                      {errors.expectedAmount}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

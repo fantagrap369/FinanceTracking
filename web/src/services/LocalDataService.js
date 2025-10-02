@@ -7,15 +7,18 @@ class LocalDataService {
     // In production, this would read from actual JSON files
     this.sampleData = {
       expenses: [
-        {
-          id: '1',
-          description: 'Woolworths Groceries',
-          amount: 245.50,
-          store: 'Woolworths',
-          category: 'Groceries',
-          date: new Date().toISOString().split('T')[0], // Today
-          notes: 'Weekly grocery shopping'
-        },
+                {
+                  id: '1',
+                  description: 'Woolworths Groceries',
+                  amount: 245.50,
+                  store: 'Woolworths',
+                  category: 'Groceries',
+                  date: new Date().toISOString().split('T')[0], // Today
+                  notes: 'Weekly grocery shopping',
+                  isRecurring: false,
+                  recurringType: null,
+                  expectedAmount: null
+                },
         {
           id: '2',
           description: 'Petrol Station',
@@ -23,7 +26,10 @@ class LocalDataService {
           store: 'Shell',
           category: 'Transport',
           date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Yesterday
-          notes: 'Fuel for car'
+          notes: 'Fuel for car',
+          isRecurring: false,
+          recurringType: null,
+          expectedAmount: null
         },
         {
           id: '3',
@@ -32,7 +38,10 @@ class LocalDataService {
           store: 'Spur',
           category: 'Dining',
           date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 days ago
-          notes: 'Family dinner out'
+          notes: 'Family dinner out',
+          isRecurring: false,
+          recurringType: null,
+          expectedAmount: null
         },
         {
           id: '4',
@@ -41,7 +50,10 @@ class LocalDataService {
           store: 'Pick n Pay',
           category: 'Groceries',
           date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days ago
-          notes: 'Quick grocery run'
+          notes: 'Quick grocery run',
+          isRecurring: false,
+          recurringType: null,
+          expectedAmount: null
         },
         {
           id: '5',
@@ -50,7 +62,10 @@ class LocalDataService {
           store: 'Engen',
           category: 'Transport',
           date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days ago
-          notes: 'Long drive fuel'
+          notes: 'Long drive fuel',
+          isRecurring: false,
+          recurringType: null,
+          expectedAmount: null
         },
         {
           id: '6',
@@ -59,7 +74,10 @@ class LocalDataService {
           store: 'Checkers',
           category: 'Groceries',
           date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days ago
-          notes: 'Small shopping'
+          notes: 'Small shopping',
+          isRecurring: false,
+          recurringType: null,
+          expectedAmount: null
         },
         {
           id: '7',
@@ -68,7 +86,34 @@ class LocalDataService {
           store: 'McDonald\'s',
           category: 'Dining',
           date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
-          notes: 'Quick lunch'
+          notes: 'Quick lunch',
+          isRecurring: false,
+          recurringType: null,
+          expectedAmount: null
+        },
+        {
+          id: '8',
+          description: 'Monthly Rent',
+          amount: 1200.00,
+          store: 'Landlord',
+          category: 'Bills',
+          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 days ago
+          notes: 'Monthly rent payment',
+          isRecurring: true,
+          recurringType: 'monthly',
+          expectedAmount: 1200.00
+        },
+        {
+          id: '9',
+          description: 'Gym Membership',
+          amount: 450.00,
+          store: 'Virgin Active',
+          category: 'Bills',
+          date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 10 days ago
+          notes: 'Monthly gym membership',
+          isRecurring: true,
+          recurringType: 'monthly',
+          expectedAmount: 450.00
         }
       ],
       descriptions: {

@@ -183,7 +183,7 @@ const BankStatementUpload = () => {
       'Entertainment': '#10b981',
       'Other': '#6b7280'
     };
-    return colors[category] || '#6b7280';
+    return colors[category] || colors['Other'];
   };
 
   const getFilteredTransactions = () => {
@@ -727,11 +727,11 @@ const BankStatementUpload = () => {
                         fontSize: '0.875rem',
                         whiteSpace: 'nowrap'
                       }}>
-                        {new Date(transaction.date).toLocaleDateString('en-ZA', {
+                        {transaction.date ? new Date(transaction.date).toLocaleDateString('en-ZA', {
                           year: 'numeric',
                           month: 'short',
                           day: '2-digit'
-                        })}
+                        }) : 'N/A'}
                       </td>
                       <td style={{ 
                         padding: '0.75rem 1rem', 
@@ -744,7 +744,7 @@ const BankStatementUpload = () => {
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap'
                         }}>
-                          {transaction.description}
+                          {transaction.description || 'N/A'}
                         </div>
                       </td>
                       <td style={{ 
@@ -758,7 +758,7 @@ const BankStatementUpload = () => {
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap'
                         }}>
-                          {transaction.store}
+                          {transaction.store || 'N/A'}
                         </div>
                       </td>
                       <td style={{ 
@@ -767,13 +767,13 @@ const BankStatementUpload = () => {
                       }}>
                         <span style={{
                           padding: '0.25rem 0.5rem',
-                          backgroundColor: this.getCategoryColor(transaction.category) + '20',
-                          color: this.getCategoryColor(transaction.category),
+                          backgroundColor: getCategoryColor(transaction.category) + '20',
+                          color: getCategoryColor(transaction.category),
                           borderRadius: '0.25rem',
                           fontSize: '0.75rem',
                           fontWeight: '500'
                         }}>
-                          {transaction.category}
+                          {transaction.category || 'Other'}
                         </span>
                       </td>
                       <td style={{ 
@@ -783,7 +783,7 @@ const BankStatementUpload = () => {
                         fontWeight: '600',
                         color: transaction.isIncome ? '#10b981' : '#1f2937'
                       }}>
-                        {transaction.isIncome ? '+' : '-'}R{transaction.amount.toFixed(2)}
+                        {transaction.isIncome ? '+' : '-'}R{(transaction.amount || 0).toFixed(2)}
                       </td>
                       <td style={{ 
                         padding: '0.75rem 1rem', 

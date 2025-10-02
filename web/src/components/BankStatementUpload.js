@@ -1096,6 +1096,60 @@ const BankStatementUpload = () => {
                                   +
                                 </button>
                               </div>
+                              {newCategoryInputVisible && (
+                                <div style={{ 
+                                  marginTop: '0.5rem', 
+                                  display: 'flex', 
+                                  gap: '0.25rem',
+                                  alignItems: 'center'
+                                }}>
+                                  <input
+                                    type="text"
+                                    placeholder="New category"
+                                    value={newCategory}
+                                    onChange={(e) => setNewCategory(e.target.value)}
+                                    style={{
+                                      padding: '0.25rem 0.5rem',
+                                      border: '1px solid #d1d5db',
+                                      borderRadius: '0.25rem',
+                                      fontSize: '0.75rem',
+                                      width: '120px'
+                                    }}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleCreateNewCategory()}
+                                  />
+                                  <button
+                                    onClick={handleCreateNewCategory}
+                                    style={{
+                                      padding: '0.25rem 0.5rem',
+                                      backgroundColor: '#10b981',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '0.25rem',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    Add
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setNewCategoryInputVisible(false);
+                                      setNewCategory('');
+                                    }}
+                                    style={{
+                                      padding: '0.25rem 0.5rem',
+                                      backgroundColor: '#ef4444',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '0.25rem',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              )}
                             </td>
                             <td style={{ 
                               padding: '0.75rem 1rem', 

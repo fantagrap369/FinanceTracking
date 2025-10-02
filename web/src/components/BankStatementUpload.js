@@ -282,59 +282,16 @@ const BankStatementUpload = () => {
     'Healthcare', 'Education', 'Travel', 'Utilities', 'Other'
   ]);
 
-  // Find similar transactions based on store name or description
-  const findSimilarTransactions = (transaction, allTransactions) => {
-    const currentStore = transaction.store?.toLowerCase() || '';
-    const currentDescription = transaction.description?.toLowerCase() || '';
-    
-    return allTransactions.filter(tx => {
-      if (tx.id === transaction.id) return false; // Don't include the current transaction
-      
-      const txStore = tx.store?.toLowerCase() || '';
-      const txDescription = tx.description?.toLowerCase() || '';
-      
-      // Check for exact store match
-      if (currentStore && txStore && currentStore === txStore) {
-        return true;
-      }
-      
-      // Check for partial store match (e.g., "Woolworths" matches "Woolworths Pretoria")
-      if (currentStore && txStore && 
-          (currentStore.includes(txStore) || txStore.includes(currentStore))) {
-        return true;
-      }
-      
-      // Check for description similarity (first 2-3 words)
-      if (currentDescription && txDescription) {
-        const currentWords = currentDescription.split(' ').slice(0, 3);
-        const txWords = txDescription.split(' ').slice(0, 3);
-        const commonWords = currentWords.filter(word => 
-          txWords.some(txWord => 
-            word.length > 3 && txWord.length > 3 && 
-            (word.includes(txWord) || txWord.includes(word))
-          )
-        );
-        return commonWords.length >= 1;
-      }
-      
-      return false;
-    });
-  };
 
-  // Handle category change for a transaction with smart updates
+  // Handle category change for a single transaction only
   const handleCategoryChange = (transactionId, newCategory) => {
     const transaction = getFilteredTransactions().find(tx => tx.id === transactionId);
     if (!transaction) return;
 
-    // Find similar transactions
-    const similarTransactions = findSimilarTransactions(transaction, getFilteredTransactions());
-    
-    // Update the main transaction and all similar ones
-    const transactionsToUpdate = [transactionId, ...similarTransactions.map(tx => tx.id)];
-    
+    // Update only the specific transaction
     setExtractedTransactions(prev => 
       prev.map(tx => 
-        transactionsToUpdate.includes(tx.id)
+        tx.id === transactionId
           ? { ...tx, category: newCategory }
           : tx
       )

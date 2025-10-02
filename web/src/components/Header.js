@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { DollarSign, Plus, BarChart3, Settings } from 'lucide-react';
+import { DollarSign, Plus, BarChart3, Settings, Repeat } from 'lucide-react';
 
 const Header = () => {
   const location = useLocation();
@@ -8,6 +8,7 @@ const Header = () => {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: BarChart3 },
     { path: '/expenses', label: 'Expenses', icon: DollarSign },
+    { path: '/recurring', label: 'Recurring', icon: Repeat },
     { path: '/add', label: 'Add Expense', icon: Plus }
   ];
 

@@ -182,15 +182,24 @@ class BankStatementParser {
     const dataLines = lines.slice(headerIndex + 1).filter(line => line.trim());
     
     for (const line of dataLines) {
+      // Split by comma but be careful with descriptions that might contain commas
       const columns = line.split(',').map(col => col.trim().replace(/"/g, ''));
+      
+      console.log('CSV Line:', line);
+      console.log('Split columns:', columns);
       
       if (columns.length >= 4) {
         const [dateStr, amountStr, balanceStr, ...descriptionParts] = columns;
         const date = this.parseDate(dateStr);
         const amount = this.parseAmount(amountStr);
         
+        console.log('Parsed - Date:', date, 'Amount:', amount, 'Description parts:', descriptionParts);
+        
         if (date && amount !== null && amount !== 0) {
-          const description = descriptionParts.join(' ').trim();
+          // Join description parts and clean up extra spaces
+          const description = descriptionParts.join(' ').trim().replace(/\s+/g, ' ');
+          
+          console.log('Final description:', description);
           
           if (description) {
             // Only include expenses (negative amounts) or positive amounts for income

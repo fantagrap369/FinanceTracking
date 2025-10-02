@@ -17,6 +17,7 @@ const BankStatementUpload = () => {
   const [newCategory, setNewCategory] = useState('');
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategoryInputVisible, setNewCategoryInputVisible] = useState(false);
+  const [editingCategoryForTransaction, setEditingCategoryForTransaction] = useState(null);
   const [groupByCategory, setGroupByCategory] = useState(true);
   const [sortByAmount, setSortByAmount] = useState(true);
   const fileInputRef = useRef(null);
@@ -394,7 +395,7 @@ const BankStatementUpload = () => {
       const categoryToAdd = newCategory.trim();
       availableCategories.push(categoryToAdd);
       setNewCategory('');
-      setNewCategoryInputVisible(false);
+      setEditingCategoryForTransaction(null);
       console.log(`✅ Added new category: "${categoryToAdd}"`);
     }
   };
@@ -1081,22 +1082,30 @@ const BankStatementUpload = () => {
                                   ))}
                                 </select>
                                 <button
-                                  onClick={() => setNewCategoryInputVisible(!newCategoryInputVisible)}
+                                  onClick={() => {
+                                    if (editingCategoryForTransaction === transaction.id) {
+                                      setEditingCategoryForTransaction(null);
+                                      setNewCategory('');
+                                    } else {
+                                      setEditingCategoryForTransaction(transaction.id);
+                                      setNewCategory('');
+                                    }
+                                  }}
                                   style={{
                                     padding: '0.25rem 0.5rem',
-                                    backgroundColor: newCategoryInputVisible ? '#3b82f6' : '#f3f4f6',
+                                    backgroundColor: editingCategoryForTransaction === transaction.id ? '#3b82f6' : '#f3f4f6',
                                     border: '1px solid #d1d5db',
                                     borderRadius: '0.25rem',
                                     fontSize: '0.75rem',
                                     cursor: 'pointer',
-                                    color: newCategoryInputVisible ? 'white' : '#6b7280'
+                                    color: editingCategoryForTransaction === transaction.id ? 'white' : '#6b7280'
                                   }}
                                   title="Add new category"
                                 >
                                   +
                                 </button>
                               </div>
-                              {newCategoryInputVisible && (
+                              {editingCategoryForTransaction === transaction.id && (
                                 <div style={{ 
                                   marginTop: '0.5rem', 
                                   display: 'flex', 
@@ -1133,7 +1142,7 @@ const BankStatementUpload = () => {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      setNewCategoryInputVisible(false);
+                                      setEditingCategoryForTransaction(null);
                                       setNewCategory('');
                                     }}
                                     style={{
@@ -1334,22 +1343,30 @@ const BankStatementUpload = () => {
                                 ))}
                               </select>
                               <button
-                                onClick={() => setNewCategoryInputVisible(!newCategoryInputVisible)}
+                                onClick={() => {
+                                  if (editingCategoryForTransaction === transaction.id) {
+                                    setEditingCategoryForTransaction(null);
+                                    setNewCategory('');
+                                  } else {
+                                    setEditingCategoryForTransaction(transaction.id);
+                                    setNewCategory('');
+                                  }
+                                }}
                                 style={{
                                   padding: '0.25rem 0.5rem',
-                                  backgroundColor: newCategoryInputVisible ? '#3b82f6' : '#f3f4f6',
+                                  backgroundColor: editingCategoryForTransaction === transaction.id ? '#3b82f6' : '#f3f4f6',
                                   border: '1px solid #d1d5db',
                                   borderRadius: '0.25rem',
                                   fontSize: '0.75rem',
                                   cursor: 'pointer',
-                                  color: newCategoryInputVisible ? 'white' : '#6b7280'
+                                  color: editingCategoryForTransaction === transaction.id ? 'white' : '#6b7280'
                                 }}
                                 title="Add new category"
                               >
                                 +
                               </button>
                             </div>
-                            {newCategoryInputVisible && (
+                            {editingCategoryForTransaction === transaction.id && (
                               <div style={{ 
                                 marginTop: '0.5rem', 
                                 display: 'flex', 
@@ -1386,7 +1403,7 @@ const BankStatementUpload = () => {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    setNewCategoryInputVisible(false);
+                                    setEditingCategoryForTransaction(null);
                                     setNewCategory('');
                                   }}
                                   style={{

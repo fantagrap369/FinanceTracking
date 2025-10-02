@@ -323,7 +323,6 @@ class BankStatementParser {
             const month = parseInt(part2) - 1; // JavaScript months are 0-indexed
             const day = parseInt(part3);
             const date = new Date(year, month, day);
-            console.log(`Parsing YYYY/MM/DD: ${dateStr} -> ${year}/${month + 1}/${day} -> ${date.toISOString().split('T')[0]}`);
             if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2030) {
               return date.toISOString().split('T')[0];
             }

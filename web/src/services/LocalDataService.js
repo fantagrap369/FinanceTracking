@@ -3,8 +3,10 @@
 
 class LocalDataService {
   constructor() {
-    // For development, we'll use sample data
-    // In production, this would read from actual JSON files
+    // Use the Express server API to read from actual JSON files
+    this.baseUrl = 'http://localhost:3001/api';
+    
+    // Fallback sample data for development
     this.sampleData = {
       expenses: [
                 {
@@ -136,11 +138,32 @@ class LocalDataService {
     };
   }
 
-  // Helper method to simulate async file operations
+  // Helper method to make API requests to the Express server
   async makeRequest(endpoint, options = {}) {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: options.method || 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.warn(`API request failed for ${endpoint}, using fallback:`, error.message);
+      // Fallback to sample data if API is not available
+      return this.getSampleData(endpoint);
+    }
+  }
+
+  // Get sample data as fallback
+  getSampleData(endpoint) {
     switch (endpoint) {
       case '/expenses':
         return this.sampleData.expenses;
@@ -149,15 +172,13 @@ class LocalDataService {
       case '/categories':
         return ['Groceries', 'Transport', 'Dining', 'Entertainment', 'Utilities'];
       case '/summary':
-        return this.calculateSummary();
+        return this.calculateSummary(this.sampleData.expenses);
       default:
-        console.error(`Unknown endpoint: ${endpoint}`);
         return null;
     }
   }
 
-  calculateSummary() {
-    const expenses = this.sampleData.expenses;
+  calculateSummary(expenses = this.sampleData.expenses) {
     const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
     const thisMonth = expenses.filter(expense => {
       const expenseDate = new Date(expense.date);

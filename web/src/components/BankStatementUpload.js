@@ -13,6 +13,9 @@ const BankStatementUpload = () => {
   const [accountGroups, setAccountGroups] = useState({});
   const [selectedAccount, setSelectedAccount] = useState('all');
   const [showPreview, setShowPreview] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [newCategory, setNewCategory] = useState('');
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleFileUpload = async (event) => {
@@ -229,6 +232,85 @@ const BankStatementUpload = () => {
       return `${accountInfo.bankName || 'Bank'} - ${accountInfo.accountNumber}`;
     }
     return accountKey;
+  };
+
+  // Available categories
+  const availableCategories = [
+    'Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 
+    'Healthcare', 'Education', 'Travel', 'Utilities', 'Other'
+  ];
+
+  // Handle category change for a transaction
+  const handleCategoryChange = (transactionId, newCategory) => {
+    setExtractedTransactions(prev => 
+      prev.map(tx => 
+        tx.id === transactionId 
+          ? { ...tx, category: newCategory }
+          : tx
+      )
+    );
+
+    // Also update in account groups
+    setAccountGroups(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(accountKey => {
+        updated[accountKey] = {
+          ...updated[accountKey],
+          transactions: updated[accountKey].transactions.map(tx =>
+            tx.id === transactionId 
+              ? { ...tx, category: newCategory }
+              : tx
+          )
+        };
+      });
+      return updated;
+    });
+  };
+
+  // Handle transaction field updates (description, store, etc.)
+  const handleTransactionUpdate = (transactionId, field, value) => {
+    setExtractedTransactions(prev => 
+      prev.map(tx => 
+        tx.id === transactionId 
+          ? { ...tx, [field]: value }
+          : tx
+      )
+    );
+
+    // Also update in account groups
+    setAccountGroups(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(accountKey => {
+        updated[accountKey] = {
+          ...updated[accountKey],
+          transactions: updated[accountKey].transactions.map(tx =>
+            tx.id === transactionId 
+              ? { ...tx, [field]: value }
+              : tx
+          )
+        };
+      });
+      return updated;
+    });
+  };
+
+  // Handle creating a new category
+  const handleCreateNewCategory = () => {
+    if (newCategory.trim() && !availableCategories.includes(newCategory.trim())) {
+      availableCategories.push(newCategory.trim());
+      setNewCategory('');
+      setShowNewCategoryInput(false);
+    }
+  };
+
+  // Handle editing a transaction
+  const handleEditTransaction = (transaction) => {
+    setEditingTransaction(transaction);
+  };
+
+  // Handle canceling edit
+  const handleCancelEdit = () => {
+    setEditingTransaction(null);
   };
 
   const getStatusIcon = (status) => {
@@ -758,6 +840,18 @@ const BankStatementUpload = () => {
                     }}>
                       Type
                     </th>
+                    <th style={{ 
+                      padding: '0.75rem 1rem', 
+                      textAlign: 'center', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -784,13 +878,28 @@ const BankStatementUpload = () => {
                         fontSize: '0.875rem',
                         maxWidth: '300px'
                       }}>
-                        <div style={{ 
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {transaction.description || 'N/A'}
-                        </div>
+                        {editingTransaction && editingTransaction.id === transaction.id ? (
+                          <input
+                            type="text"
+                            value={transaction.description || ''}
+                            onChange={(e) => handleTransactionUpdate(transaction.id, 'description', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.25rem 0.5rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.25rem',
+                              fontSize: '0.875rem'
+                            }}
+                          />
+                        ) : (
+                          <div style={{ 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {transaction.description || 'N/A'}
+                          </div>
+                        )}
                       </td>
                       <td style={{ 
                         padding: '0.75rem 1rem', 
@@ -798,28 +907,124 @@ const BankStatementUpload = () => {
                         fontSize: '0.875rem',
                         maxWidth: '150px'
                       }}>
-                        <div style={{ 
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {transaction.store || 'N/A'}
-                        </div>
+                        {editingTransaction && editingTransaction.id === transaction.id ? (
+                          <input
+                            type="text"
+                            value={transaction.store || ''}
+                            onChange={(e) => handleTransactionUpdate(transaction.id, 'store', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.25rem 0.5rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.25rem',
+                              fontSize: '0.875rem'
+                            }}
+                          />
+                        ) : (
+                          <div style={{ 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {transaction.store || 'N/A'}
+                          </div>
+                        )}
                       </td>
                       <td style={{ 
                         padding: '0.75rem 1rem', 
                         fontSize: '0.875rem'
                       }}>
-                        <span style={{
-                          padding: '0.25rem 0.5rem',
-                          backgroundColor: getCategoryColor(transaction.category) + '20',
-                          color: getCategoryColor(transaction.category),
-                          borderRadius: '0.25rem',
-                          fontSize: '0.75rem',
-                          fontWeight: '500'
-                        }}>
-                          {transaction.category || 'Other'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <select
+                            value={transaction.category || 'Other'}
+                            onChange={(e) => handleCategoryChange(transaction.id, e.target.value)}
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.25rem',
+                              fontSize: '0.75rem',
+                              backgroundColor: 'white',
+                              color: getCategoryColor(transaction.category || 'Other'),
+                              fontWeight: '500',
+                              minWidth: '100px'
+                            }}
+                          >
+                            {availableCategories.map(category => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => setShowNewCategoryInput(!showNewCategoryInput)}
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              backgroundColor: '#f3f4f6',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.25rem',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              color: '#6b7280'
+                            }}
+                            title="Add new category"
+                          >
+                            +
+                          </button>
+                        </div>
+                        {showNewCategoryInput && (
+                          <div style={{ 
+                            marginTop: '0.5rem', 
+                            display: 'flex', 
+                            gap: '0.25rem',
+                            alignItems: 'center'
+                          }}>
+                            <input
+                              type="text"
+                              placeholder="New category"
+                              value={newCategory}
+                              onChange={(e) => setNewCategory(e.target.value)}
+                              style={{
+                                padding: '0.25rem 0.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                width: '120px'
+                              }}
+                              onKeyPress={(e) => e.key === 'Enter' && handleCreateNewCategory()}
+                            />
+                            <button
+                              onClick={handleCreateNewCategory}
+                              style={{
+                                padding: '0.25rem 0.5rem',
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Add
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowNewCategoryInput(false);
+                                setNewCategory('');
+                              }}
+                              style={{
+                                padding: '0.25rem 0.5rem',
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td style={{ 
                         padding: '0.75rem 1rem', 
@@ -844,6 +1049,59 @@ const BankStatementUpload = () => {
                         }}>
                           {transaction.isIncome ? 'Income' : 'Expense'}
                         </span>
+                      </td>
+                      <td style={{ 
+                        padding: '0.75rem 1rem', 
+                        textAlign: 'center',
+                        fontSize: '0.75rem'
+                      }}>
+                        {editingTransaction && editingTransaction.id === transaction.id ? (
+                          <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleCancelEdit()}
+                              style={{
+                                padding: '0.25rem 0.5rem',
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => handleCancelEdit()}
+                              style={{
+                                padding: '0.25rem 0.5rem',
+                                backgroundColor: '#6b7280',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '0.25rem',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleEditTransaction(transaction)}
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              backgroundColor: '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '0.25rem',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

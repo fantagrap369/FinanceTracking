@@ -1,6 +1,8 @@
 // Bank Statement Parser Service
 // Handles parsing of various bank statement formats
 
+import DataManager from './DataManager';
+
 class BankStatementParser {
   constructor() {
     this.southAfricanBanks = [
@@ -8,12 +10,26 @@ class BankStatementParser {
       'TymeBank', 'Discovery Bank', 'Bank Zero', 'African Bank'
     ];
     
+    // Initialize data manager
+    this.dataManager = DataManager;
+    
+    // Legacy merchants object for backward compatibility
     this.commonMerchants = {
-      'Woolworths': 'Groceries',
-      'Pick n Pay': 'Groceries', 
-      'Checkers': 'Groceries',
-      'Spar': 'Groceries',
-      'Food Lovers': 'Groceries',
+      // Food & Groceries
+      'Woolworths': 'Food',
+      'Pick n Pay': 'Shopping', 
+      'Checkers': 'Shopping',
+      'Spar': 'Shopping',
+      'Food Lovers': 'Food',
+      'VINSTRA CAFE/SUPERMARKE': 'Food',
+      'KINGS MEAT DELI': 'Food',
+      'BK CASTLE GATE': 'Food',
+      'Burger King': 'Food',
+      'UBER EATS': 'Food',
+      'PnP': 'Shopping',
+      'TOPS': 'Shopping',
+      
+      // Transport
       'Shell': 'Transport',
       'Engen': 'Transport',
       'Sasol': 'Transport',
@@ -21,24 +37,67 @@ class BankStatementParser {
       'Total': 'Transport',
       'Uber': 'Transport',
       'Bolt': 'Transport',
+      
+      // Healthcare
+      'Dischem': 'Healthcare',
+      'Clicks': 'Healthcare',
+      'DISC PREM': 'Healthcare',
+      'DISCLIFE': 'Healthcare',
+      'DISC INVT': 'Healthcare',
+      
+      // Entertainment
       'Netflix': 'Entertainment',
       'Spotify': 'Entertainment',
       'Showmax': 'Entertainment',
+      'MOREGOLF': 'Entertainment',
+      'BETWAY': 'Entertainment',
+      'STEAMGAMES': 'Entertainment',
+      'Google Golf': 'Entertainment',
+      'Yoco': 'Entertainment',
+      'Play With': 'Entertainment',
+      'Extreme Wargami': 'Entertainment',
+      
+      // Rent
+      'PAYPROP': 'Rent',
+      
+      // Bills & Utilities
+      'Vodacom': 'Bills',
+      'MTN': 'Bills',
+      'Telkom': 'Bills',
+      'VOXTELECOM': 'Bills',
+      'Microsoft': 'Bills',
+      'Google One': 'Bills',
+      'Google DopaMax': 'Bills',
+      'VIRGIN ACT': 'Bills',
+      'BYC DEBIT': 'Bills',
+      'Eskom': 'Bills',
+      
+      // Salary
+      'NETCASH': 'Salary',
+      'STANSAL': 'Salary',
+      
+      // Transfers
+      'FNB APP PAYMENT': 'Transfers',
+      'ABSA BANK': 'Transfers',
+      'MOTHER': 'Transfers',
+      'BLOB': 'Transfers',
+      'FNB PLOAN': 'Transfers',
+      'INT-BANKING PMT': 'Transfers',
+      
+      // Shopping
       'Amazon': 'Shopping',
       'Takealot': 'Shopping',
       'Mr Price': 'Shopping',
       'Foschini': 'Shopping',
-      'Eskom': 'Bills',
-      'City Power': 'Bills',
-      'Vodacom': 'Bills',
-      'MTN': 'Bills',
-      'Telkom': 'Bills'
+      'SORBET MAN': 'Shopping',
+      'KAMERS / MAKERS': 'Shopping',
+      'Total Newlands': 'Shopping',
+      'City Power': 'Bills'
     };
   }
 
   parseBankStatement(text, bankName = null) {
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    const transactions = [];
     
     // Extract account information first
     const accountInfo = this.extractAccountInfo(lines);
@@ -91,31 +150,64 @@ class BankStatementParser {
       accountName: null,
       accountType: null,
       bankName: null,
-      balance: null
+      balance: null,
+      availableBalance: null
     };
+
+    console.log('🔍 Extracting account info from lines:', lines.slice(0, 10));
 
     for (const line of lines) {
       // Extract account number
       if (line.toLowerCase().includes('account:') && !accountInfo.accountNumber) {
-        const accountMatch = line.match(/account:\s*([^,\[\]]+)/i);
-        if (accountMatch) {
-          accountInfo.accountNumber = accountMatch[1].trim();
+        console.log('🔍 Processing account line:', line);
+        // Try different patterns to extract account number
+        const patterns = [
+          /account:\s*,\s*([^,\[\]]+)/i,  // Account:, 448008******8000
+          /account:\s*([^,\[\]]+)/i,      // Account: 448008******8000
+          /account:\s*,\s*([^,]+)/i,      // Account:, 448008******8000, [Type]
+          /account:\s*,\s*([^\s,]+)/i,    // Account:, 448008******8000
+          /account:\s*,\s*([0-9*]+)/i     // Account:, 448008******8000 (numbers and asterisks)
+        ];
+        
+        for (const pattern of patterns) {
+          const match = line.match(pattern);
+          if (match && match[1].trim()) {
+            accountInfo.accountNumber = match[1].trim();
+            console.log('✅ Extracted account number:', accountInfo.accountNumber);
+            break;
+          }
+        }
+        
+        if (!accountInfo.accountNumber) {
+          console.log('❌ Failed to extract account number from line:', line);
         }
       }
 
       // Extract account name/type
       if (line.toLowerCase().includes('account:') && line.includes('[') && line.includes(']')) {
         const typeMatch = line.match(/\[([^\]]+)\]/);
-        if (typeMatch) {
-          accountInfo.accountType = typeMatch[1].trim();
-        }
+      if (typeMatch) {
+        accountInfo.accountType = typeMatch[1].trim();
+        console.log('✅ Extracted account type:', accountInfo.accountType);
+      }
       }
 
-      // Extract balance
+      // Extract balance (current balance and available balance)
       if (line.toLowerCase().includes('balance:') && !accountInfo.balance) {
-        const balanceMatch = line.match(/balance:\s*([+-]?\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+        console.log('🔍 Processing balance line:', line);
+        // Match: Balance:, -36920.22, 21843
+        const balanceMatch = line.match(/balance:\s*,\s*([+-]?\d+(?:,\d{3})*(?:\.\d{2})?)\s*,\s*([+-]?\d+(?:,\d{3})*(?:\.\d{2})?)/i);
         if (balanceMatch) {
           accountInfo.balance = parseFloat(balanceMatch[1].replace(/,/g, ''));
+          accountInfo.availableBalance = parseFloat(balanceMatch[2].replace(/,/g, ''));
+          console.log('✅ Extracted balance:', accountInfo.balance, 'Available:', accountInfo.availableBalance);
+        } else {
+          // Fallback to single balance if format is different
+          const singleBalanceMatch = line.match(/balance:\s*([+-]?\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+          if (singleBalanceMatch) {
+            accountInfo.balance = parseFloat(singleBalanceMatch[1].replace(/,/g, ''));
+            console.log('✅ Extracted single balance:', accountInfo.balance);
+          }
         }
       }
 
@@ -142,7 +234,8 @@ class BankStatementParser {
         }
       }
     }
-
+    
+    console.log('📋 Final account info:', accountInfo);
     return accountInfo;
   }
 
@@ -223,8 +316,9 @@ class BankStatementParser {
       
       const date = this.parseDate(dateStr);
       const amount = this.parseAmount(amountStr);
+      const balance = this.parseAmount(balanceStr);
       
-      console.log('Parsed - Date:', date, 'Amount:', amount);
+      console.log('Parsed - Date:', date, 'Amount:', amount, 'Balance:', balance);
       
       if (date && amount !== null && amount !== 0) {
         if (description) {
@@ -240,7 +334,8 @@ class BankStatementParser {
             notes: `Imported from CSV bank statement${isExpense ? '' : ' (Income)'}`,
             isImported: true,
             isIncome: !isExpense,
-            originalLine: line
+            originalLine: line,
+            balance: balance // Include the balance from CSV
           });
         }
       }
@@ -417,10 +512,48 @@ class BankStatementParser {
   }
 
   extractStoreName(description) {
-    // Try to find known merchants first
+    const lowerDesc = description.toLowerCase();
+    
+    // Try to find known merchants first (case-insensitive)
     for (const merchant of Object.keys(this.commonMerchants)) {
-      if (description.toLowerCase().includes(merchant.toLowerCase())) {
+      if (lowerDesc.includes(merchant.toLowerCase())) {
         return merchant;
+      }
+    }
+    
+    // Additional case-insensitive patterns for common stores
+    const storePatterns = [
+      { pattern: /pnp\s+exp/i, name: 'Pick n Pay' },
+      { pattern: /pick\s+n\s+pay/i, name: 'Pick n Pay' },
+      { pattern: /tops\s+menlyn/i, name: 'TOPS' },
+      { pattern: /checkers\s+sixty60/i, name: 'Checkers' },
+      { pattern: /woolworths/i, name: 'Woolworths' },
+      { pattern: /engen\s+castle/i, name: 'Engen' },
+      { pattern: /shell/i, name: 'Shell' },
+      { pattern: /bp\s+hazelwood/i, name: 'BP' },
+      { pattern: /dischem/i, name: 'Dischem' },
+      { pattern: /amazon/i, name: 'Amazon' },
+      { pattern: /takealot/i, name: 'Takealot' },
+      { pattern: /uber\s+eats/i, name: 'Uber Eats' },
+      { pattern: /vodacom/i, name: 'Vodacom' },
+      { pattern: /microsoft/i, name: 'Microsoft' },
+      { pattern: /google/i, name: 'Google' },
+      { pattern: /netflix/i, name: 'Netflix' },
+      { pattern: /spotify/i, name: 'Spotify' },
+      { pattern: /yoco/i, name: 'Yoco' },
+      { pattern: /betway/i, name: 'Betway' },
+      { pattern: /steamgames/i, name: 'Steam' },
+      { pattern: /moregolf/i, name: 'MoreGolf' },
+      { pattern: /virgin\s+act/i, name: 'Virgin Active' },
+      { pattern: /payprop/i, name: 'PayProp' },
+      { pattern: /blob/i, name: 'BLOB' },
+      { pattern: /fnb/i, name: 'FNB' },
+      { pattern: /absa/i, name: 'ABSA' }
+    ];
+    
+    for (const { pattern, name } of storePatterns) {
+      if (pattern.test(description)) {
+        return name;
       }
     }
     
@@ -435,34 +568,84 @@ class BankStatementParser {
   categorizeTransaction(description) {
     const desc = description.toLowerCase();
     
+    // Get merchants from DataManager (with fallback to legacy)
+    const merchants = this.dataManager.getFlattenedMerchants() || this.commonMerchants;
+    
     // Check against known merchants
-    for (const [merchant, category] of Object.entries(this.commonMerchants)) {
+    for (const [merchant, category] of Object.entries(merchants)) {
       if (desc.includes(merchant.toLowerCase())) {
         return category;
       }
     }
     
-    // Pattern-based categorization
-    if (desc.includes('grocery') || desc.includes('food') || desc.includes('supermarket')) {
-      return 'Food';
-    }
-    if (desc.includes('petrol') || desc.includes('fuel') || desc.includes('gas') || desc.includes('transport')) {
-      return 'Transport';
-    }
-    if (desc.includes('electricity') || desc.includes('water') || desc.includes('rent') || desc.includes('bill')) {
-      return 'Bills';
-    }
-    if (desc.includes('restaurant') || desc.includes('cafe') || desc.includes('dining')) {
-      return 'Food';
-    }
-    if (desc.includes('shopping') || desc.includes('store') || desc.includes('retail')) {
-      return 'Shopping';
-    }
-    if (desc.includes('entertainment') || desc.includes('movie') || desc.includes('streaming')) {
-      return 'Entertainment';
+    // Get patterns from DataManager (with fallback to legacy)
+    const patterns = this.dataManager.getPatterns() || this.getLegacyPatterns();
+    
+    // Pattern-based categorization (all case-insensitive)
+    for (const [category, patternData] of Object.entries(patterns)) {
+      if (patternData.keywords && patternData.keywords.some(keyword => desc.includes(keyword))) {
+        return category;
+      }
     }
     
     return 'Other';
+  }
+
+  // Legacy patterns for backward compatibility
+  getLegacyPatterns() {
+    return {
+      "Food": {
+        "keywords": [
+          "grocery", "food", "supermarket", "cafe", "restaurant", "dining",
+          "burger", "meat", "eats", "vinstra", "kings meat", "bk castle"
+        ]
+      },
+      "Transport": {
+        "keywords": [
+          "petrol", "fuel", "gas", "transport", "engen", "shell", "bp", "total"
+        ]
+      },
+      "Bills": {
+        "keywords": [
+          "electricity", "water", "bill", "monthly", "fee", "int pymt",
+          "byc", "vodacom", "microsoft", "google", "virgin", "voxtelcom"
+        ]
+      },
+      "Rent": {
+        "keywords": [
+          "rent", "payprop"
+        ]
+      },
+      "Shopping": {
+        "keywords": [
+          "shopping", "store", "retail", "amazon", "takealot", "sorbet",
+          "kamers", "makers", "pnp", "pick n pay", "checkers", "spar",
+          "tops", "purc", "woolworths", "food lovers"
+        ]
+      },
+      "Entertainment": {
+        "keywords": [
+          "entertainment", "movie", "streaming", "golf", "betway", "steam",
+          "yoco", "play", "wargami"
+        ]
+      },
+      "Salary": {
+        "keywords": [
+          "salary", "income", "netcash", "stansal", "pay"
+        ]
+      },
+      "Transfers": {
+        "keywords": [
+          "transfer", "eft", "payment", "fnb", "absa", "mother",
+          "blob", "ploan"
+        ]
+      },
+      "Healthcare": {
+        "keywords": [
+          "dischem", "clicks", "pharmacy", "disc", "health", "medical"
+        ]
+      }
+    };
   }
 
   enhanceTransaction(transaction, bankName, accountInfo) {
@@ -474,9 +657,15 @@ class BankStatementParser {
     // Add account information
     if (accountInfo) {
       transaction.accountNumber = accountInfo.accountNumber;
-      transaction.accountName = accountInfo.accountName;
+      // Create a descriptive account name
+      const accountNumber = accountInfo.accountNumber || 'Unknown';
+      const accountType = accountInfo.accountType || 'Account';
+      transaction.account = `${accountNumber} (${accountType})`;
+      transaction.accountName = accountInfo.accountName || accountNumber; // Use account number as name if no name found
       transaction.accountType = accountInfo.accountType;
       transaction.bankName = accountInfo.bankName || bankName;
+      transaction.currentBalance = accountInfo.balance;
+      transaction.availableBalance = accountInfo.availableBalance;
     }
     
     // Add unique ID

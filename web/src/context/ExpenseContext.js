@@ -18,6 +18,8 @@ export const ExpenseProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dataSource, setDataSource] = useState('local'); // 'local' or 'phone'
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
 
   // Fetch all expenses
   const fetchExpenses = useCallback(async () => {
@@ -30,6 +32,20 @@ export const ExpenseProvider = ({ children }) => {
       console.error('Error fetching expenses:', err);
     }
   }, []);
+
+  // Fetch accounts
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const data = await LocalDataService.getAccounts();
+      setAccounts(data);
+      // Auto-select first account if none selected
+      if (data.length > 0 && !selectedAccount) {
+        setSelectedAccount(data[0].name);
+      }
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    }
+  }, [selectedAccount]);
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
@@ -204,6 +220,20 @@ export const ExpenseProvider = ({ children }) => {
     }
   };
 
+  // Get expenses for selected account
+  const getAccountExpenses = useCallback(() => {
+    if (!selectedAccount) return [];
+    return expenses.filter(expense => 
+      (expense.account || 'Default Account') === selectedAccount
+    );
+  }, [expenses, selectedAccount]);
+
+  // Get account balance
+  const getAccountBalance = useCallback(() => {
+    if (!selectedAccount) return null;
+    return LocalDataService.calculateAccountBalance(expenses, selectedAccount);
+  }, [expenses, selectedAccount]);
+
   // Refresh all data
   const refreshData = useCallback(async () => {
     try {
@@ -211,7 +241,8 @@ export const ExpenseProvider = ({ children }) => {
       await Promise.all([
         fetchExpenses(),
         fetchCategories(),
-        fetchSummary()
+        fetchSummary(),
+        fetchAccounts()
       ]);
       setError(null);
     } catch (err) {
@@ -220,7 +251,7 @@ export const ExpenseProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [fetchExpenses, fetchCategories, fetchSummary]);
+  }, [fetchExpenses, fetchCategories, fetchSummary, fetchAccounts]);
 
   // Clear error
   const clearError = () => {
@@ -245,11 +276,14 @@ export const ExpenseProvider = ({ children }) => {
     loading,
     error,
     dataSource,
+    accounts,
+    selectedAccount,
     
     // Actions
     fetchExpenses,
     fetchCategories,
     fetchSummary,
+    fetchAccounts,
     addExpense,
     updateExpense,
     deleteExpense,
@@ -261,6 +295,9 @@ export const ExpenseProvider = ({ children }) => {
     getDailySpendingData,
     getStatistics,
     exportExpensesToCSV,
+    getAccountExpenses,
+    getAccountBalance,
+    setSelectedAccount,
     refreshData,
     clearError,
     setDataSourceType,

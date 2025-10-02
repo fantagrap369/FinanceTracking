@@ -101,6 +101,28 @@ app.put('/api/expenses/:id', (req, res) => {
   }
 });
 
+// Delete all expenses
+app.delete('/api/expenses/delete-all', (req, res) => {
+  const data = readData();
+  
+  // Reset to initial state
+  const resetData = {
+    expenses: [],
+    categories: ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Other'],
+    lastUpdated: new Date().toISOString()
+  };
+  
+  if (writeData(resetData)) {
+    res.json({ 
+      success: true, 
+      message: 'All data has been deleted successfully',
+      deletedCount: data.expenses.length
+    });
+  } else {
+    res.status(500).json({ error: 'Failed to delete all data' });
+  }
+});
+
 // Delete expense
 app.delete('/api/expenses/:id', (req, res) => {
   const data = readData();
@@ -161,6 +183,60 @@ app.get('/api/summary', (req, res) => {
   });
   
   res.json(summary);
+});
+
+// Get merchants data
+app.get('/api/merchants', (req, res) => {
+  try {
+    const merchantsData = fs.readJsonSync(path.join(__dirname, 'data', 'merchants.json'));
+    res.json(merchantsData);
+  } catch (error) {
+    console.error('Error reading merchants data:', error);
+    res.status(500).json({ error: 'Failed to load merchants data' });
+  }
+});
+
+// Get categorization patterns
+app.get('/api/categorization-patterns', (req, res) => {
+  try {
+    const patternsData = fs.readJsonSync(path.join(__dirname, 'data', 'categorization-patterns.json'));
+    res.json(patternsData);
+  } catch (error) {
+    console.error('Error reading categorization patterns:', error);
+    res.status(500).json({ error: 'Failed to load categorization patterns' });
+  }
+});
+
+// Update merchants data
+app.put('/api/merchants', (req, res) => {
+  try {
+    const merchantsData = {
+      merchants: req.body.merchants,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    fs.writeJsonSync(path.join(__dirname, 'data', 'merchants.json'), merchantsData, { spaces: 2 });
+    res.json({ success: true, message: 'Merchants data updated successfully' });
+  } catch (error) {
+    console.error('Error updating merchants data:', error);
+    res.status(500).json({ error: 'Failed to update merchants data' });
+  }
+});
+
+// Update categorization patterns
+app.put('/api/categorization-patterns', (req, res) => {
+  try {
+    const patternsData = {
+      patterns: req.body.patterns,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    fs.writeJsonSync(path.join(__dirname, 'data', 'categorization-patterns.json'), patternsData, { spaces: 2 });
+    res.json({ success: true, message: 'Categorization patterns updated successfully' });
+  } catch (error) {
+    console.error('Error updating categorization patterns:', error);
+    res.status(500).json({ error: 'Failed to update categorization patterns' });
+  }
 });
 
 // Serve React app for all other routes

@@ -19,7 +19,7 @@ const AddExpense = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const categories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Other'];
+  const categories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Salary', 'Transfers', 'Healthcare', 'Rent', 'Other'];
 
   const quickAddExamples = [
     { amount: '45.00', store: 'Starbucks', description: 'Coffee', category: 'Food' },
@@ -27,6 +27,8 @@ const AddExpense = () => {
     { amount: '350.00', store: 'Shell', description: 'Petrol', category: 'Transport' },
     { amount: '85.00', store: 'Nando\'s', description: 'Fast Food', category: 'Food' },
     { amount: '1500.00', store: 'Eskom', description: 'Electricity Bill', category: 'Bills' },
+    { amount: '25000.00', store: 'Company', description: 'Monthly Salary', category: 'Salary' },
+    { amount: '500.00', store: 'Bank Transfer', description: 'Transfer from Savings', category: 'Transfers' },
   ];
 
   const recurringExamples = [
@@ -183,10 +185,10 @@ const AddExpense = () => {
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
-          Add Expense
+          Add Transaction
         </h1>
         <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.125rem', color: '#6b7280' }}>
-          Track your spending with detailed information
+          Track your income and spending with detailed information
         </p>
       </div>
 
@@ -701,7 +703,7 @@ const AddExpense = () => {
               ) : (
                 <>
                   <Plus size={16} style={{ marginRight: '0.5rem' }} />
-                  Add Expense
+                  Add Transaction
                 </>
               )}
             </button>

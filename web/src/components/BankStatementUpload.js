@@ -199,6 +199,13 @@ const BankStatementUpload = () => {
       'Shopping': '#8b5cf6',
       'Bills': '#f59e0b',
       'Entertainment': '#10b981',
+      'Healthcare': '#065f46',
+      'Education': '#7c2d12',
+      'Travel': '#4f46e5',
+      'Utilities': '#9d174d',
+      'Rent': '#ca8a04',
+      'Salary': '#16a34a',
+      'Transfers': '#6d28d9',
       'Other': '#6b7280'
     };
     return colors[category] || colors['Other'];
@@ -279,7 +286,8 @@ const BankStatementUpload = () => {
   // Available categories - now as state
   const [availableCategories, setAvailableCategories] = useState([
     'Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 
-    'Healthcare', 'Education', 'Travel', 'Utilities', 'Other'
+    'Healthcare', 'Education', 'Travel', 'Utilities', 'Rent', 
+    'Salary', 'Transfers', 'Other'
   ]);
 
 

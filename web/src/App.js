@@ -6,6 +6,8 @@ import Expenses from './components/Expenses';
 import AddExpense from './components/AddExpense';
 import RecurringExpenses from './components/RecurringExpenses';
 import BankStatementUpload from './components/BankStatementUpload';
+import Settings from './components/Settings';
+import ChartBuilder from './components/ChartBuilder';
 import { ExpenseProvider } from './context/ExpenseContext';
 
 function App() {
@@ -21,6 +23,8 @@ function App() {
                       <Route path="/add" element={<AddExpense />} />
                       <Route path="/recurring" element={<RecurringExpenses />} />
                       <Route path="/upload" element={<BankStatementUpload />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/charts" element={<ChartBuilder />} />
                     </Routes>
           </main>
         </div>

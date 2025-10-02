@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Label, Legend } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Receipt, Calendar } from 'lucide-react';
 import { useExpenses } from '../context/ExpenseContext';
 import { format, subDays, subMonths } from 'date-fns';
+import AccountSelector from './AccountSelector';
 
 const Dashboard = () => {
-  const { expenses, summary, loading, fetchExpenses, fetchSummary } = useExpenses();
+  const { 
+    summary, 
+    loading, 
+    fetchExpenses, 
+    fetchSummary, 
+    selectedAccount, 
+    getAccountExpenses, 
+    getAccountBalance 
+  } = useExpenses();
   const [selectedPeriod, setSelectedPeriod] = useState('7days');
   const [customDateRange, setCustomDateRange] = useState({
     start: '',
@@ -25,6 +34,9 @@ const Dashboard = () => {
   };
 
   const getFilteredExpenses = () => {
+    if (!selectedAccount) return [];
+    
+    const accountExpenses = getAccountExpenses();
     const now = new Date();
     let startDate, endDate = now;
 
@@ -50,7 +62,7 @@ const Dashboard = () => {
         startDate = subDays(now, 7);
     }
 
-    const filtered = expenses.filter(expense => {
+    const filtered = accountExpenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       // Set time to start of day for accurate comparison
       const expenseDateStart = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate());
@@ -61,7 +73,7 @@ const Dashboard = () => {
     });
     
     // Debug logging
-    console.log(`Filtered expenses for period ${selectedPeriod}:`, filtered.length, 'expenses');
+    console.log(`Filtered expenses for account ${selectedAccount}, period ${selectedPeriod}:`, filtered.length, 'expenses');
     console.log('Date range:', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
     
     return filtered;
@@ -69,7 +81,6 @@ const Dashboard = () => {
 
   const getChartData = () => {
     const filteredExpenses = getFilteredExpenses();
-    const chartData = [];
     const now = new Date();
     let startDate, endDate = now;
     let intervalDays = 1;
@@ -103,37 +114,89 @@ const Dashboard = () => {
         intervalDays = 1;
     }
 
-    const current = new Date(startDate);
-    while (current <= endDate) {
-      const periodEnd = new Date(current);
-      periodEnd.setDate(periodEnd.getDate() + intervalDays - 1);
-      if (periodEnd > endDate) periodEnd.setTime(endDate.getTime());
+    // Get all transactions in the period
+    const periodExpenses = filteredExpenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return expenseDate >= startDate && expenseDate <= endDate;
+    });
 
-      const periodExpenses = filteredExpenses.filter(expense => {
-        const expenseDate = new Date(expense.date);
-        // Set time to start of day for accurate comparison
-        const expenseDateStart = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate());
-        const currentStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
-        const periodEndStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), periodEnd.getDate());
+    // Start with the current balance from CSV if available
+    const accountBalance = getAccountBalance();
+    let currentBalance = 0;
+    
+    if (accountBalance && accountBalance.currentBalance !== null) {
+      currentBalance = accountBalance.currentBalance;
+    }
+
+    // Sort expenses by date (newest first for reverse calculation)
+    const sortedExpenses = [...periodExpenses].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // Create a map of expenses by date for easy lookup
+    const expensesByDate = {};
+    sortedExpenses.forEach(expense => {
+      const dateKey = format(new Date(expense.date), 'yyyy-MM-dd');
+      if (!expensesByDate[dateKey]) {
+        expensesByDate[dateKey] = [];
+      }
+      expensesByDate[dateKey].push(expense);
+    });
+
+    const chartData = [];
+    const current = new Date(endDate);
+    
+    // Go backwards from today to start date
+    while (current >= startDate) {
+      const dateKey = format(current, 'yyyy-MM-dd');
+      const dayExpenses = expensesByDate[dateKey] || [];
+      
+      let dayEndBalance = currentBalance;
+      let dayChange = 0;
+      
+      // Check if any transaction has a balance from CSV
+      const transactionWithBalance = dayExpenses.find(exp => exp.balance !== null && exp.balance !== undefined);
+      
+      if (transactionWithBalance && transactionWithBalance.balance !== 0) {
+        // Use the balance from CSV (this is the balance after all transactions for this day)
+        dayEndBalance = transactionWithBalance.balance;
+        console.log(`📊 Using CSV balance for ${dateKey}: ${dayEndBalance}`);
         
-        return expenseDateStart >= currentStart && expenseDateStart <= periodEndStart;
-      });
-      
-      const total = periodExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-      
-      chartData.push({
-        date: format(current, intervalDays === 1 ? 'EEE dd' : 'MMM dd'),
-        amount: total,
-        fullDate: format(current, 'MMM dd, yyyy'),
-        count: periodExpenses.length
-      });
-      
-      // Debug logging
-      if (periodExpenses.length > 0) {
-        console.log(`Date: ${format(current, 'yyyy-MM-dd')}, Expenses: ${periodExpenses.length}, Total: ${total}`);
+        // Calculate the change for this day
+        dayChange = dayExpenses.reduce((sum, exp) => {
+          const isIncome = exp.category === 'Salary' || (exp.category === 'Transfers' && exp.isIncome);
+          return sum + (isIncome ? exp.amount : -exp.amount);
+        }, 0);
+      } else {
+        // Fall back to calculation if no CSV balance available
+        console.log(`📊 Calculating balance for ${dateKey} (no CSV balance)`);
+        
+        // Subtract all transactions that happened on this day
+        // (since we're going backwards, we need to reverse the effect)
+        dayExpenses.forEach(expense => {
+          const isIncome = expense.category === 'Salary' || (expense.category === 'Transfers' && expense.isIncome);
+          // Reverse the transaction effect to get the balance before this transaction
+          dayEndBalance -= isIncome ? expense.amount : -expense.amount;
+        });
+        
+        // Calculate total change for this day
+        dayChange = dayExpenses.reduce((sum, exp) => {
+          const isIncome = exp.category === 'Salary' || (exp.category === 'Transfers' && exp.isIncome);
+          return sum + (isIncome ? exp.amount : -exp.amount);
+        }, 0);
       }
 
-      current.setDate(current.getDate() + intervalDays);
+      chartData.unshift({
+        date: format(current, intervalDays === 1 ? 'EEE dd' : 'MMM dd'),
+        balance: dayEndBalance,
+        fullDate: format(current, 'MMM dd, yyyy'),
+        change: dayChange,
+        transactionCount: dayExpenses.length
+      });
+
+      // Update current balance to the start of this day
+      currentBalance = dayEndBalance;
+      
+      // Move to previous day
+      current.setDate(current.getDate() - intervalDays);
     }
     
     return chartData;
@@ -188,9 +251,47 @@ const Dashboard = () => {
     );
   }
 
+  if (!selectedAccount) {
+    return (
+      <div style={{ padding: '2rem 0' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '2rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: '1.875rem', fontWeight: 'bold', color: '#1f2937' }}>
+              Dashboard
+            </h2>
+            <AccountSelector />
+          </div>
+        </div>
+        
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          padding: '4rem',
+          color: '#6b7280'
+        }}>
+          <DollarSign size={64} color="#d1d5db" />
+          <h3 style={{ margin: '1rem 0 0.5rem 0', fontSize: '1.25rem', fontWeight: '500' }}>
+            No Account Selected
+          </h3>
+          <p style={{ margin: 0, fontSize: '0.875rem', textAlign: 'center' }}>
+            Please select an account to view your financial data
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '2rem 0' }}>
-      {/* Time Period Selector */}
+      {/* Account Selector and Time Period Selector */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -199,9 +300,12 @@ const Dashboard = () => {
         flexWrap: 'wrap',
         gap: '1rem'
       }}>
-        <h2 style={{ margin: 0, fontSize: '1.875rem', fontWeight: 'bold', color: '#1f2937' }}>
-          Dashboard
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, fontSize: '1.875rem', fontWeight: 'bold', color: '#1f2937' }}>
+            Dashboard
+          </h2>
+          <AccountSelector />
+        </div>
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Time Period Buttons */}
@@ -320,6 +424,53 @@ const Dashboard = () => {
         gap: '1.5rem', 
         marginBottom: '2rem' 
       }}>
+        {/* Account Balance Card */}
+        {selectedAccount && (
+          <div style={{ 
+            backgroundColor: 'white', 
+            padding: '1.5rem', 
+            borderRadius: '0.75rem', 
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+              <div style={{ 
+                backgroundColor: '#dbeafe', 
+                padding: '0.75rem', 
+                borderRadius: '0.5rem',
+                marginRight: '1rem'
+              }}>
+                <DollarSign size={24} color="#3b82f6" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280', fontWeight: '500' }}>
+                  Current Balance
+                </h3>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: '2rem', 
+                  fontWeight: 'bold', 
+                  color: getAccountBalance()?.currentBalance >= 0 ? '#22c55e' : '#ef4444'
+                }}>
+                  {formatCurrency(getAccountBalance()?.currentBalance || 0)}
+                </p>
+                {getAccountBalance()?.availableBalance !== null && (
+                  <p style={{ 
+                    margin: '0.25rem 0 0 0', 
+                    fontSize: '0.875rem', 
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Available: {formatCurrency(getAccountBalance()?.availableBalance || 0)}
+                  </p>
+                )}
+              </div>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
+              {selectedAccount}
+            </p>
+          </div>
+        )}
         <div style={{ 
           backgroundColor: 'white', 
           padding: '1.5rem', 
@@ -341,15 +492,17 @@ const Dashboard = () => {
                 {selectedPeriod === '7days' ? 'Last 7 Days' : 
                  selectedPeriod === '1month' ? 'Last Month' :
                  selectedPeriod === '3months' ? 'Last 3 Months' :
-                 selectedPeriod === 'custom' ? 'Custom Period' : 'Selected Period'}
+                 selectedPeriod === 'custom' ? 'Custom Period' : 'Selected Period'} - Spending
               </h3>
               <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
-                {formatCurrency(getFilteredExpenses().reduce((sum, expense) => sum + expense.amount, 0))}
+                {formatCurrency(getFilteredExpenses()
+                  .filter(expense => expense.amount > 0 && (expense.category !== 'Salary' && expense.category !== 'Transfers'))
+                  .reduce((sum, expense) => sum + expense.amount, 0))}
               </p>
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
-            {getFilteredExpenses().length} transactions
+            {getFilteredExpenses().filter(expense => expense.amount > 0 && (expense.category !== 'Salary' && expense.category !== 'Transfers')).length} spending transactions
           </p>
         </div>
 
@@ -362,25 +515,26 @@ const Dashboard = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ 
-              backgroundColor: '#f3f4f6', 
+              backgroundColor: '#f0fdf4', 
               padding: '0.75rem', 
               borderRadius: '0.5rem',
               marginRight: '1rem'
             }}>
-              <Calendar size={24} color="#6b7280" />
+              <TrendingUp size={24} color="#22c55e" />
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280', fontWeight: '500' }}>
-                Average Transaction
+                Total Income
               </h3>
               <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
-                {formatCurrency(getFilteredExpenses().length > 0 ? 
-                  getFilteredExpenses().reduce((sum, expense) => sum + expense.amount, 0) / getFilteredExpenses().length : 0)}
+                {formatCurrency(getFilteredExpenses()
+                  .filter(expense => expense.amount > 0 && (expense.category === 'Salary' || (expense.category === 'Transfers' && expense.isIncome)))
+                  .reduce((sum, expense) => sum + expense.amount, 0))}
               </p>
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
-            {getFilteredExpenses().length} transactions
+            {getFilteredExpenses().filter(expense => expense.amount > 0 && (expense.category === 'Salary' || (expense.category === 'Transfers' && expense.isIncome))).length} income transactions
           </p>
         </div>
 
@@ -414,13 +568,13 @@ const Dashboard = () => {
                 fontWeight: 'bold', 
                 color: '#1f2937'
               }}>
-                {formatCurrency(Math.max(...getChartData().map(d => d.amount), 0))}
+                {formatCurrency(Math.max(...getChartData().map(d => d.spending), 0))}
               </p>
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
             {getChartData().length > 0 ? 
-              getChartData().find(d => d.amount === Math.max(...getChartData().map(d => d.amount)))?.fullDate || 'N/A' : 
+              getChartData().find(d => d.spending === Math.max(...getChartData().map(d => d.spending)))?.fullDate || 'N/A' : 
               'No data'}
           </p>
         </div>
@@ -442,13 +596,13 @@ const Dashboard = () => {
           border: '1px solid #e5e7eb'
         }}>
           <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
-            {selectedPeriod === '7days' ? 'Last 7 Days' : 
-             selectedPeriod === '1month' ? 'Last Month' :
-             selectedPeriod === '3months' ? 'Last 3 Months' :
-             selectedPeriod === 'custom' ? 'Custom Period' : 'Spending Trend'}
+            {selectedPeriod === '7days' ? 'Account Balance - Last 7 Days' : 
+             selectedPeriod === '1month' ? 'Account Balance - Last Month' :
+             selectedPeriod === '3months' ? 'Account Balance - Last 3 Months' :
+             selectedPeriod === 'custom' ? 'Account Balance - Custom Period' : 'Account Balance Over Time'}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={getChartData()}>
+            <AreaChart data={getChartData()}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
               <XAxis 
                 dataKey="date" 
@@ -465,7 +619,10 @@ const Dashboard = () => {
                 tickFormatter={(value) => `R${value}`}
               />
               <Tooltip 
-                formatter={(value) => [formatCurrency(value), 'Amount']}
+                formatter={(value, name, props) => [
+                  formatCurrency(value), 
+                  `Balance${props.payload.change !== 0 ? ` (${props.payload.change > 0 ? '+' : ''}${formatCurrency(props.payload.change)})` : ''}`
+                ]}
                 labelFormatter={(label) => `Date: ${label}`}
                 contentStyle={{
                   backgroundColor: 'white',
@@ -474,15 +631,17 @@ const Dashboard = () => {
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
               />
-              <Line 
+              <Area 
                 type="monotone" 
-                dataKey="amount" 
+                dataKey="balance" 
                 stroke="#3b82f6" 
-                strokeWidth={3}
-                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
-                activeDot={{ r: 8, stroke: '#3b82f6', strokeWidth: 2 }}
+                fill="#3b82f6"
+                fillOpacity={0.3}
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </div>
 

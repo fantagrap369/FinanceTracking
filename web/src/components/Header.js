@@ -1,16 +1,18 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { DollarSign, Plus, BarChart3, Settings, Repeat, Upload } from 'lucide-react';
+import { DollarSign, Plus, BarChart3, Settings, Repeat, Upload, PieChart } from 'lucide-react';
 
 const Header = () => {
   const location = useLocation();
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: BarChart3 },
-    { path: '/expenses', label: 'Expenses', icon: DollarSign },
+    { path: '/expenses', label: 'Transactions', icon: DollarSign },
+    { path: '/charts', label: 'Chart Builder', icon: PieChart },
     { path: '/recurring', label: 'Recurring', icon: Repeat },
     { path: '/upload', label: 'Upload', icon: Upload },
-    { path: '/add', label: 'Add Expense', icon: Plus }
+    { path: '/add', label: 'Add Transaction', icon: Plus },
+    { path: '/settings', label: 'Settings', icon: Settings }
   ];
 
   return (

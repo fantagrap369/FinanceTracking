@@ -215,12 +215,15 @@ class LocalDataService {
       const newExpense = {
         ...expense,
         id: Date.now().toString(),
-        date: new Date().toISOString(),
+        // Don't override the date if it's already provided (e.g., from bank statement import)
+        date: expense.date || new Date().toISOString(),
+        // Ensure account is set
+        account: expense.account || 'Default Account',
       };
 
       const response = await this.makeRequest('/expenses', {
         method: 'POST',
-        body: JSON.stringify(newExpense),
+        body: newExpense,
       });
 
       return response;
@@ -235,7 +238,7 @@ class LocalDataService {
     try {
       const response = await this.makeRequest(`/expenses/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(updates),
+        body: updates,
       });
 
       return response;
@@ -542,6 +545,80 @@ class LocalDataService {
         categoryStats: {}
       };
     }
+  }
+
+  // Get all unique accounts
+  async getAccounts() {
+    try {
+      const expenses = await this.getExpenses();
+      const accounts = new Map();
+      
+      expenses.forEach(expense => {
+        const accountName = expense.account || 'Default Account';
+        if (!accounts.has(accountName)) {
+          accounts.set(accountName, {
+            name: accountName,
+            type: expense.accountType || 'Unknown',
+            bankName: expense.bankName || 'Unknown Bank',
+            lastTransaction: expense.date
+          });
+        }
+      });
+      
+      return Array.from(accounts.values());
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+      return [];
+    }
+  }
+
+  // Calculate account balance
+  calculateAccountBalance(expenses, accountName) {
+    const accountExpenses = expenses.filter(expense => 
+      (expense.account || 'Default Account') === accountName
+    );
+    
+    // Sort by date to calculate running balance
+    const sortedExpenses = accountExpenses.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // Check if we have a current balance from CSV import (most recent transaction)
+    const latestTransaction = sortedExpenses[sortedExpenses.length - 1];
+    const hasCsvBalance = latestTransaction && latestTransaction.currentBalance !== undefined;
+    
+    let balance = 0;
+    const balanceHistory = [];
+    
+    if (hasCsvBalance) {
+      // Use the current balance from CSV as the starting point
+      balance = latestTransaction.currentBalance;
+      console.log('📊 Using CSV balance:', balance, 'Available:', latestTransaction.availableBalance);
+    } else {
+      // Calculate balance from transactions
+      sortedExpenses.forEach(expense => {
+        if (expense.category === 'Salary' || (expense.category === 'Transfers' && expense.isIncome)) {
+          balance += expense.amount; // Income adds to balance
+        } else {
+          balance -= expense.amount; // Expenses subtract from balance
+        }
+        
+        balanceHistory.push({
+          ...expense,
+          runningBalance: balance
+        });
+      });
+    }
+    
+    return {
+      currentBalance: balance,
+      availableBalance: latestTransaction?.availableBalance || null,
+      balanceHistory: balanceHistory,
+      totalIncome: accountExpenses
+        .filter(exp => exp.category === 'Salary' || (exp.category === 'Transfers' && exp.isIncome))
+        .reduce((sum, exp) => sum + exp.amount, 0),
+      totalSpending: accountExpenses
+        .filter(exp => exp.category !== 'Salary' && !(exp.category === 'Transfers' && exp.isIncome))
+        .reduce((sum, exp) => sum + exp.amount, 0)
+    };
   }
 }
 

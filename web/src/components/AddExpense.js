@@ -1,43 +1,97 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { DollarSign, Store, Tag, FileText, Plus, X } from 'lucide-react';
 import { useExpenses } from '../context/ExpenseContext';
-import { Save, ArrowLeft } from 'lucide-react';
 
 const AddExpense = () => {
-  const navigate = useNavigate();
-  const { addExpense, categories } = useExpenses();
-  const [loading, setLoading] = useState(false);
+  const { addExpense } = useExpenses();
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
     store: '',
     category: '',
     notes: '',
-    source: 'manual'
   });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const categories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Other'];
+
+  const quickAddExamples = [
+    { amount: '45.00', store: 'Starbucks', description: 'Coffee', category: 'Food' },
+    { amount: '120.00', store: 'Pick n Pay', description: 'Groceries', category: 'Food' },
+    { amount: '350.00', store: 'Shell', description: 'Petrol', category: 'Transport' },
+    { amount: '85.00', store: 'Nando\'s', description: 'Fast Food', category: 'Food' },
+    { amount: '1500.00', store: 'Eskom', description: 'Electricity Bill', category: 'Bills' },
+  ];
+
+  const handleChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [field]: value
     }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
+  };
+
+  const handleQuickAdd = (example) => {
+    setFormData({
+      description: example.description,
+      amount: example.amount,
+      store: example.store,
+      category: example.category,
+      notes: '',
+    });
+    setErrors({});
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+    if (!formData.amount.trim()) {
+      newErrors.amount = 'Amount is required';
+    } else {
+      const amount = parseFloat(formData.amount);
+      if (isNaN(amount) || amount <= 0) {
+        newErrors.amount = 'Please enter a valid amount';
+      }
+    }
+    if (!formData.store.trim()) {
+      newErrors.store = 'Store name is required';
+    }
+    if (!formData.category) {
+      newErrors.category = 'Please select a category';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.description || !formData.amount) {
-      alert('Please fill in description and amount');
-      return;
-    }
+    if (!validateForm()) return;
 
-    setLoading(true);
     try {
-      await addExpense({
-        ...formData,
-        amount: parseFloat(formData.amount)
-      });
+      setLoading(true);
+      
+      const expense = {
+        description: formData.description.trim(),
+        amount: parseFloat(formData.amount),
+        store: formData.store.trim(),
+        category: formData.category,
+        notes: formData.notes.trim(),
+      };
+
+      await addExpense(expense);
       
       // Reset form
       setFormData({
@@ -46,189 +100,357 @@ const AddExpense = () => {
         store: '',
         category: '',
         notes: '',
-        source: 'manual'
       });
       
-      // Navigate back to expenses
-      navigate('/expenses');
+      alert('Expense added successfully!');
     } catch (error) {
+      console.error('Error adding expense:', error);
       alert('Failed to add expense. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleClear = () => {
+    if (window.confirm('Are you sure you want to clear all fields?')) {
+      setFormData({
+        description: '',
+        amount: '',
+        store: '',
+        category: '',
+        notes: '',
+      });
+      setErrors({});
+    }
+  };
+
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          className="btn btn-secondary"
-          onClick={() => navigate(-1)}
-        >
-          <ArrowLeft size={16} />
-          Back
-        </button>
-        <h2 className="text-3xl font-bold">Add Expense</h2>
+    <div style={{ padding: '2rem 0' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#1f2937' }}>
+          Add Expense
+        </h1>
+        <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.125rem', color: '#6b7280' }}>
+          Track your spending with detailed information
+        </p>
       </div>
 
-      <div className="card">
+      {/* Quick Add Examples */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '1.5rem', 
+        borderRadius: '0.75rem', 
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+        border: '1px solid #e5e7eb',
+        marginBottom: '1.5rem'
+      }}>
+        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
+          Quick Add
+        </h3>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '1rem' 
+        }}>
+          {quickAddExamples.map((example, index) => (
+            <button
+              key={index}
+              onClick={() => handleQuickAdd(example)}
+              style={{
+                padding: '1rem',
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e5e7eb',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#f1f5f9';
+                e.target.style.borderColor = '#3b82f6';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#f8fafc';
+                e.target.style.borderColor = '#e5e7eb';
+              }}
+            >
+              <div style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1f2937', marginBottom: '0.25rem' }}>
+                R{example.amount}
+              </div>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                {example.store}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                {example.description}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Form */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '1.5rem', 
+        borderRadius: '0.75rem', 
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.125rem', fontWeight: '600', color: '#1f2937' }}>
+          Expense Details
+        </h3>
+        
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="form-group">
-              <label className="form-label" htmlFor="description">
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+            gap: '1.5rem',
+            marginBottom: '1.5rem'
+          }}>
+            {/* Description */}
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '0.5rem' 
+              }}>
+                <DollarSign size={16} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
                 Description *
               </label>
               <input
                 type="text"
-                id="description"
-                name="description"
-                className="form-input"
-                placeholder="What did you buy?"
+                placeholder="e.g., Coffee, Groceries, Petrol"
                 value={formData.description}
-                onChange={handleChange}
-                required
+                onChange={(e) => handleChange('description', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: `1px solid ${errors.description ? '#ef4444' : '#d1d5db'}`,
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  backgroundColor: errors.description ? '#fef2f2' : 'white'
+                }}
               />
+              {errors.description && (
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#ef4444' }}>
+                  {errors.description}
+                </p>
+              )}
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="amount">
-                Amount *
+            {/* Amount */}
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '0.5rem' 
+              }}>
+                Amount (R) *
               </label>
               <input
                 type="number"
-                id="amount"
-                name="amount"
-                className="form-input"
-                placeholder="0.00"
                 step="0.01"
-                min="0"
+                placeholder="0.00"
                 value={formData.amount}
-                onChange={handleChange}
-                required
+                onChange={(e) => handleChange('amount', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: `1px solid ${errors.amount ? '#ef4444' : '#d1d5db'}`,
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  backgroundColor: errors.amount ? '#fef2f2' : 'white'
+                }}
               />
+              {errors.amount && (
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#ef4444' }}>
+                  {errors.amount}
+                </p>
+              )}
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="store">
-                Store/Merchant
+            {/* Store */}
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '0.5rem' 
+              }}>
+                <Store size={16} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                Store *
               </label>
               <input
                 type="text"
-                id="store"
-                name="store"
-                className="form-input"
-                placeholder="Where did you buy it?"
+                placeholder="e.g., Pick n Pay, Shell, Starbucks"
                 value={formData.store}
-                onChange={handleChange}
+                onChange={(e) => handleChange('store', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: `1px solid ${errors.store ? '#ef4444' : '#d1d5db'}`,
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  backgroundColor: errors.store ? '#fef2f2' : 'white'
+                }}
               />
+              {errors.store && (
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#ef4444' }}>
+                  {errors.store}
+                </p>
+              )}
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="category">
-                Category
+            {/* Category */}
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '0.875rem', 
+                fontWeight: '500', 
+                color: '#374151', 
+                marginBottom: '0.5rem' 
+              }}>
+                <Tag size={16} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                Category *
               </label>
-              <select
-                id="category"
-                name="category"
-                className="form-select"
-                value={formData.category}
-                onChange={handleChange}
-              >
-                <option value="">Select a category</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+                gap: '0.5rem' 
+              }}>
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => handleChange('category', category)}
+                    style={{
+                      padding: '0.75rem',
+                      border: `1px solid ${formData.category === category ? '#3b82f6' : '#d1d5db'}`,
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      backgroundColor: formData.category === category ? '#3b82f6' : 'white',
+                      color: formData.category === category ? 'white' : '#374151',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {category}
+                  </button>
                 ))}
-              </select>
-            </div>
-
-            <div className="form-group md:col-span-2">
-              <label className="form-label" htmlFor="notes">
-                Notes
-              </label>
-              <textarea
-                id="notes"
-                name="notes"
-                className="form-input"
-                rows="3"
-                placeholder="Any additional notes..."
-                value={formData.notes}
-                onChange={handleChange}
-              />
+              </div>
+              {errors.category && (
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#ef4444' }}>
+                  {errors.category}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="flex justify-end gap-4 mt-6">
+          {/* Notes */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '0.875rem', 
+              fontWeight: '500', 
+              color: '#374151', 
+              marginBottom: '0.5rem' 
+            }}>
+              <FileText size={16} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+              Notes (Optional)
+            </label>
+            <textarea
+              placeholder="Additional notes about this expense..."
+              value={formData.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                outline: 'none',
+                backgroundColor: 'white',
+                resize: 'vertical'
+              }}
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '1rem', 
+            justifyContent: 'flex-end' 
+          }}>
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={() => navigate(-1)}
+              onClick={handleClear}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#f3f4f6',
+                color: '#6b7280',
+                border: '1px solid #e5e7eb',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
             >
-              Cancel
+              <X size={16} style={{ marginRight: '0.5rem' }} />
+              Clear
             </button>
+
             <button
               type="submit"
-              className="btn btn-primary"
               disabled={loading}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0.75rem 1.5rem',
+                backgroundColor: loading ? '#9ca3af' : '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1
+              }}
             >
               {loading ? (
-                'Adding...'
+                <>
+                  <div style={{ 
+                    width: '16px', 
+                    height: '16px', 
+                    border: '2px solid #ffffff40', 
+                    borderTop: '2px solid #ffffff', 
+                    borderRadius: '50%', 
+                    animation: 'spin 1s linear infinite',
+                    marginRight: '0.5rem'
+                  }}></div>
+                  Adding...
+                </>
               ) : (
                 <>
-                  <Save size={16} style={{ marginRight: '0.5rem' }} />
+                  <Plus size={16} style={{ marginRight: '0.5rem' }} />
                   Add Expense
                 </>
               )}
             </button>
           </div>
         </form>
-      </div>
-
-      {/* Quick Add Examples */}
-      <div className="card mt-6">
-        <h3 className="text-lg font-bold mb-4">Quick Add Examples</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            className="p-4 border border-gray-200 rounded-lg text-left hover:bg-gray-50"
-            onClick={() => setFormData(prev => ({
-              ...prev,
-              description: 'Coffee',
-              amount: '4.50',
-              store: 'Starbucks',
-              category: 'Food'
-            }))}
-          >
-            <div className="font-medium">☕ Coffee</div>
-            <div className="text-sm text-gray-500">R45.00 • Starbucks • Food</div>
-          </button>
-
-          <button
-            className="p-4 border border-gray-200 rounded-lg text-left hover:bg-gray-50"
-            onClick={() => setFormData(prev => ({
-              ...prev,
-              description: 'Gas',
-              amount: '45.00',
-              store: 'Shell',
-              category: 'Transport'
-            }))}
-          >
-            <div className="font-medium">⛽ Gas</div>
-            <div className="text-sm text-gray-500">R450.00 • Shell • Transport</div>
-          </button>
-
-          <button
-            className="p-4 border border-gray-200 rounded-lg text-left hover:bg-gray-50"
-            onClick={() => setFormData(prev => ({
-              ...prev,
-              description: 'Groceries',
-              amount: '85.30',
-              store: 'Walmart',
-              category: 'Food'
-            }))}
-          >
-            <div className="font-medium">🛒 Groceries</div>
-            <div className="text-sm text-gray-500">R853.00 • Pick n Pay • Food</div>
-          </button>
-        </div>
       </div>
     </div>
   );

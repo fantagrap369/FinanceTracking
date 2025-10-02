@@ -1,202 +1,176 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-// Your PC's IP address - update this to match your local network
 const PC_IP = '192.168.1.100'; // Replace with your actual PC IP
 const API_BASE = `http://${PC_IP}:3000`;
 const STORAGE_KEY = 'expenses';
 const SYNC_KEY = 'last_sync';
 
 class ExpenseService {
+  constructor() {
+    this.isOnline = false;
+    this.checkConnection();
+  }
+
+  // Check if PC is connected
+  async checkConnection() {
+    try {
+      const response = await axios.get(`${API_BASE}/api/health`, { timeout: 5000 });
+      this.isOnline = response.status === 200;
+      return this.isOnline;
+    } catch (error) {
+      this.isOnline = false;
+      return false;
+    }
+  }
+
+  // Get all expenses (PC first, then local fallback)
   async getExpenses() {
     try {
-      // Try to fetch from PC first
-      const response = await axios.get(`${API_BASE}/api/expenses`);
-      const pcExpenses = response.data;
-      
-      // Update local storage with PC data
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pcExpenses));
-      await AsyncStorage.setItem(SYNC_KEY, new Date().toISOString());
-      
-      return pcExpenses;
-    } catch (error) {
-      console.log('PC unavailable, using local storage');
-      // Fallback to local storage
-      const localExpenses = await AsyncStorage.getItem(STORAGE_KEY);
-      return localExpenses ? JSON.parse(localExpenses) : [];
-    }
-  }
-
-  async addExpense(expenseData) {
-    try {
-      // Try to add to PC first
-      const response = await axios.post(`${API_BASE}/api/expenses`, expenseData);
-      
-      // Also save locally as backup
-      await this.saveToLocalStorage(response.data);
-      
-      return response.data;
-    } catch (error) {
-      console.log('PC unavailable, saving locally for later sync');
-      // Fallback to local storage - will sync when PC is available
-      const expense = {
-        id: Date.now().toString(),
-        ...expenseData,
-        createdAt: new Date().toISOString(),
-        needsSync: true // Mark for sync
-      };
-      
-      await this.saveToLocalStorage(expense);
-      return expense;
-    }
-  }
-
-  async updateExpense(id, expenseData) {
-    try {
-      // Try to update on server first
-      const response = await axios.put(`${API_BASE}/api/expenses/${id}`, expenseData);
-      
-      // Also update locally
-      await this.updateLocalStorage(id, expenseData);
-      
-      return response.data;
-    } catch (error) {
-      console.log('Server unavailable, updating locally');
-      // Fallback to local storage
-      await this.updateLocalStorage(id, expenseData);
-      return { id, ...expenseData };
-    }
-  }
-
-  async deleteExpense(id) {
-    try {
-      // Try to delete from server first
-      await axios.delete(`${API_BASE}/api/expenses/${id}`);
-      
-      // Also delete locally
-      await this.deleteFromLocalStorage(id);
-      
-      return true;
-    } catch (error) {
-      console.log('Server unavailable, deleting locally');
-      // Fallback to local storage
-      await this.deleteFromLocalStorage(id);
-      return true;
-    }
-  }
-
-  async getSummary() {
-    try {
-      // Try to fetch from server first
-      const response = await axios.get(`${API_BASE}/api/summary`);
-      return response.data;
-    } catch (error) {
-      console.log('Server unavailable, calculating local summary');
-      // Fallback to local calculation
-      const expenses = await this.getExpenses();
-      return this.calculateLocalSummary(expenses);
-    }
-  }
-
-  async saveToLocalStorage(expense) {
-    try {
-      const existingExpenses = await this.getExpenses();
-      const updatedExpenses = [...existingExpenses, expense];
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedExpenses));
-    } catch (error) {
-      console.error('Error saving to local storage:', error);
-    }
-  }
-
-  async updateLocalStorage(id, expenseData) {
-    try {
-      const existingExpenses = await this.getExpenses();
-      const updatedExpenses = existingExpenses.map(exp => 
-        exp.id === id ? { ...exp, ...expenseData, updatedAt: new Date().toISOString() } : exp
-      );
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedExpenses));
-    } catch (error) {
-      console.error('Error updating local storage:', error);
-    }
-  }
-
-  async deleteFromLocalStorage(id) {
-    try {
-      const existingExpenses = await this.getExpenses();
-      const updatedExpenses = existingExpenses.filter(exp => exp.id !== id);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedExpenses));
-    } catch (error) {
-      console.error('Error deleting from local storage:', error);
-    }
-  }
-
-  calculateLocalSummary(expenses) {
-    const totalSpent = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-    const totalTransactions = expenses.length;
-    
-    const byCategory = {};
-    expenses.forEach(expense => {
-      const category = expense.category || 'Other';
-      if (!byCategory[category]) {
-        byCategory[category] = { count: 0, total: 0 };
+      // Try PC first
+      if (await this.checkConnection()) {
+        const response = await axios.get(`${API_BASE}/api/expenses`);
+        const pcExpenses = response.data;
+        
+        // Update local storage with PC data
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pcExpenses));
+        return pcExpenses;
       }
-      byCategory[category].count++;
-      byCategory[category].total += expense.amount || 0;
-    });
+    } catch (error) {
+      console.log('PC not available, using local data:', error.message);
+    }
 
-    const byMonth = {};
-    expenses.forEach(expense => {
-      const month = new Date(expense.createdAt).toISOString().substring(0, 7);
-      if (!byMonth[month]) {
-        byMonth[month] = { count: 0, total: 0 };
-      }
-      byMonth[month].count++;
-      byMonth[month].total += expense.amount || 0;
-    });
+    // Fallback to local storage
+    try {
+      const localData = await AsyncStorage.getItem(STORAGE_KEY);
+      return localData ? JSON.parse(localData) : [];
+    } catch (error) {
+      console.error('Error reading local expenses:', error);
+      return [];
+    }
+  }
 
-    const recentExpenses = expenses
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 10);
-
-    return {
-      totalSpent,
-      totalTransactions,
-      byCategory,
-      byMonth,
-      recentExpenses
+  // Add new expense
+  async addExpense(expense) {
+    const newExpense = {
+      id: Date.now().toString(),
+      ...expense,
+      date: new Date().toISOString(),
+      needsSync: true
     };
+
+    try {
+      // Try PC first
+      if (await this.checkConnection()) {
+        const response = await axios.post(`${API_BASE}/api/expenses`, newExpense);
+        newExpense.needsSync = false;
+        console.log('Expense added to PC:', response.data);
+      }
+    } catch (error) {
+      console.log('PC not available, storing locally:', error.message);
+    }
+
+    // Always store locally
+    const localExpenses = await this.getExpenses();
+    localExpenses.push(newExpense);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(localExpenses));
+
+    return newExpense;
   }
 
+  // Update existing expense
+  async updateExpense(id, updates) {
+    const localExpenses = await this.getExpenses();
+    const expenseIndex = localExpenses.findIndex(exp => exp.id === id);
+    
+    if (expenseIndex === -1) {
+      throw new Error('Expense not found');
+    }
+
+    const updatedExpense = {
+      ...localExpenses[expenseIndex],
+      ...updates,
+      needsSync: true
+    };
+
+    try {
+      // Try PC first
+      if (await this.checkConnection()) {
+        await axios.put(`${API_BASE}/api/expenses/${id}`, updatedExpense);
+        updatedExpense.needsSync = false;
+        console.log('Expense updated on PC');
+      }
+    } catch (error) {
+      console.log('PC not available, updating locally:', error.message);
+    }
+
+    // Update local storage
+    localExpenses[expenseIndex] = updatedExpense;
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(localExpenses));
+
+    return updatedExpense;
+  }
+
+  // Delete expense
+  async deleteExpense(id) {
+    const localExpenses = await this.getExpenses();
+    const expenseIndex = localExpenses.findIndex(exp => exp.id === id);
+    
+    if (expenseIndex === -1) {
+      throw new Error('Expense not found');
+    }
+
+    try {
+      // Try PC first
+      if (await this.checkConnection()) {
+        await axios.delete(`${API_BASE}/api/expenses/${id}`);
+        console.log('Expense deleted from PC');
+      }
+    } catch (error) {
+      console.log('PC not available, deleting locally:', error.message);
+    }
+
+    // Remove from local storage
+    localExpenses.splice(expenseIndex, 1);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(localExpenses));
+
+    return true;
+  }
+
+  // Sync local changes with PC
   async syncWithPC() {
     try {
       const localExpenses = await this.getExpenses();
       const needsSync = localExpenses.filter(exp => exp.needsSync);
-      
+
       if (needsSync.length === 0) {
         console.log('No expenses need syncing');
         return true;
       }
-      
+
       console.log(`Syncing ${needsSync.length} expenses to PC...`);
-      
-      // Send expenses that need syncing to PC
+
       for (const expense of needsSync) {
         try {
-          await axios.post(`${API_BASE}/api/expenses`, expense);
+          if (expense.id && expense.id.startsWith('temp_')) {
+            // New expense - create on PC
+            const response = await axios.post(`${API_BASE}/api/expenses`, expense);
+            expense.id = response.data.id;
+            expense.needsSync = false;
+          } else {
+            // Existing expense - update on PC
+            await axios.put(`${API_BASE}/api/expenses/${expense.id}`, expense);
+            expense.needsSync = false;
+          }
           
-          // Remove needsSync flag
-          expense.needsSync = false;
           await this.updateLocalStorage(expense.id, expense);
-          
           console.log(`Synced expense: ${expense.description}`);
         } catch (error) {
           console.log(`Failed to sync expense ${expense.id}:`, error.message);
         }
       }
-      
-      // Update last sync time
+
       await AsyncStorage.setItem(SYNC_KEY, new Date().toISOString());
-      
       console.log('Sync with PC completed');
       return true;
     } catch (error) {
@@ -205,6 +179,21 @@ class ExpenseService {
     }
   }
 
+  // Update local storage
+  async updateLocalStorage(id, expense) {
+    const localExpenses = await this.getExpenses();
+    const expenseIndex = localExpenses.findIndex(exp => exp.id === id);
+    
+    if (expenseIndex !== -1) {
+      localExpenses[expenseIndex] = expense;
+    } else {
+      localExpenses.push(expense);
+    }
+    
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(localExpenses));
+  }
+
+  // Get last sync time
   async getLastSyncTime() {
     try {
       const lastSync = await AsyncStorage.getItem(SYNC_KEY);
@@ -215,11 +204,83 @@ class ExpenseService {
     }
   }
 
+  // Check if PC is connected
   async isPCConnected() {
+    return await this.checkConnection();
+  }
+
+  // Get expenses by date range
+  async getExpensesByDateRange(startDate, endDate) {
+    const expenses = await this.getExpenses();
+    return expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return expenseDate >= startDate && expenseDate <= endDate;
+    });
+  }
+
+  // Get expenses by category
+  async getExpensesByCategory(category) {
+    const expenses = await this.getExpenses();
+    return expenses.filter(expense => expense.category === category);
+  }
+
+  // Get expenses by store
+  async getExpensesByStore(store) {
+    const expenses = await this.getExpenses();
+    return expenses.filter(expense => 
+      expense.store.toLowerCase().includes(store.toLowerCase())
+    );
+  }
+
+  // Get spending summary
+  async getSpendingSummary() {
+    const expenses = await this.getExpenses();
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const thisMonthExpenses = expenses.filter(exp => 
+      new Date(exp.date) >= thisMonth
+    );
+    const lastMonthExpenses = expenses.filter(exp => 
+      new Date(exp.date) >= lastMonth && new Date(exp.date) < thisMonth
+    );
+
+    const thisMonthTotal = thisMonthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const lastMonthTotal = lastMonthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+    // Category breakdown
+    const categoryBreakdown = {};
+    thisMonthExpenses.forEach(expense => {
+      const category = expense.category || 'Other';
+      categoryBreakdown[category] = (categoryBreakdown[category] || 0) + expense.amount;
+    });
+
+    return {
+      thisMonth: {
+        total: thisMonthTotal,
+        count: thisMonthExpenses.length,
+        average: thisMonthExpenses.length > 0 ? thisMonthTotal / thisMonthExpenses.length : 0
+      },
+      lastMonth: {
+        total: lastMonthTotal,
+        count: lastMonthExpenses.length,
+        average: lastMonthExpenses.length > 0 ? lastMonthTotal / lastMonthExpenses.length : 0
+      },
+      change: lastMonthTotal > 0 ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0,
+      categoryBreakdown
+    };
+  }
+
+  // Clear all local data
+  async clearLocalData() {
     try {
-      const response = await axios.get(`${API_BASE}/api/health`, { timeout: 5000 });
-      return response.status === 200;
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(SYNC_KEY);
+      console.log('Local data cleared');
+      return true;
     } catch (error) {
+      console.error('Error clearing local data:', error);
       return false;
     }
   }

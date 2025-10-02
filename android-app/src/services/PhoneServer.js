@@ -1,4 +1,6 @@
 import { NativeModules, NativeEventEmitter } from 'react-native';
+
+const { PhoneServer: PhoneServerModule } = NativeModules;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DescriptionLearner from './DescriptionLearner';
 
@@ -11,18 +13,19 @@ class PhoneServer {
 
   async startServer() {
     try {
-      // This would require a native module to create an HTTP server
-      // For now, we'll simulate the server functionality
-      console.log(`Phone server starting on port ${this.port}`);
-      this.isRunning = true;
-      
-      // In a real implementation, you would:
-      // 1. Create a native Android module to start an HTTP server
-      // 2. Handle HTTP requests and serve JSON data
-      // 3. Enable CORS for web browser access
-      
-      console.log('Phone server started - ready to serve data to web app');
-      return true;
+      if (PhoneServerModule) {
+        // Use the actual native module
+        const result = await PhoneServerModule.startServer(this.port);
+        this.isRunning = true;
+        console.log('Phone server started (native):', result);
+        return true;
+      } else {
+        // Fallback to simulation if native module not available
+        console.log(`Phone server starting on port ${this.port} (simulated)`);
+        this.isRunning = true;
+        console.log('Phone server started - ready to serve data to web app');
+        return true;
+      }
     } catch (error) {
       console.error('Error starting phone server:', error);
       return false;

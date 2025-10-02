@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ExpenseService from '../services/ExpenseService';
+import DescriptionLearner from '../services/DescriptionLearner';
 
 const AddExpenseScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -25,6 +26,14 @@ const AddExpenseScreen = ({ navigation }) => {
 
   const categories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Other'];
 
+  const quickAddExamples = [
+    { amount: '45.00', store: 'Starbucks', description: 'Coffee', category: 'Food' },
+    { amount: '120.00', store: 'Pick n Pay', description: 'Groceries', category: 'Food' },
+    { amount: '350.00', store: 'Shell', description: 'Petrol', category: 'Transport' },
+    { amount: '85.00', store: 'Nando\'s', description: 'Fast Food', category: 'Food' },
+    { amount: '1500.00', store: 'Eskom', description: 'Electricity Bill', category: 'Bills' },
+  ];
+
   const handleChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -32,53 +41,118 @@ const AddExpenseScreen = ({ navigation }) => {
     }));
   };
 
-  const handleSubmit = async () => {
-    if (!formData.description.trim() || !formData.amount.trim()) {
-      Alert.alert('Error', 'Please fill in description and amount');
-      return;
+  const handleQuickAdd = (example) => {
+    setFormData({
+      description: example.description,
+      amount: example.amount,
+      store: example.store,
+      category: example.category,
+      notes: '',
+    });
+  };
+
+  const validateForm = () => {
+    if (!formData.description.trim()) {
+      Alert.alert('Error', 'Please enter a description');
+      return false;
+    }
+    if (!formData.amount.trim()) {
+      Alert.alert('Error', 'Please enter an amount');
+      return false;
+    }
+    if (!formData.store.trim()) {
+      Alert.alert('Error', 'Please enter a store name');
+      return false;
+    }
+    if (!formData.category) {
+      Alert.alert('Error', 'Please select a category');
+      return false;
     }
 
     const amount = parseFloat(formData.amount);
     if (isNaN(amount) || amount <= 0) {
       Alert.alert('Error', 'Please enter a valid amount');
-      return;
+      return false;
     }
 
-    setLoading(true);
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
     try {
-      await ExpenseService.addExpense({
-        ...formData,
-        amount: amount,
-        source: 'manual'
-      });
+      setLoading(true);
       
-      Alert.alert('Success', 'Expense added successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      const expense = {
+        description: formData.description.trim(),
+        amount: parseFloat(formData.amount),
+        store: formData.store.trim(),
+        category: formData.category,
+        notes: formData.notes.trim(),
+      };
+
+      await ExpenseService.addExpense(expense);
       
-      // Reset form
-      setFormData({
-        description: '',
-        amount: '',
-        store: '',
-        category: '',
-        notes: '',
-      });
+      // Learn this description for future use
+      await DescriptionLearner.learnDescription(
+        expense.store,
+        expense.description,
+        expense.category,
+        expense.amount
+      );
+
+      Alert.alert(
+        'Success',
+        'Expense added successfully!',
+        [
+          {
+            text: 'Add Another',
+            onPress: () => {
+              setFormData({
+                description: '',
+                amount: '',
+                store: '',
+                category: '',
+                notes: '',
+              });
+            }
+          },
+          {
+            text: 'View Expenses',
+            onPress: () => navigation.navigate('Expenses')
+          }
+        ]
+      );
     } catch (error) {
+      console.error('Error adding expense:', error);
       Alert.alert('Error', 'Failed to add expense. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const quickAdd = (description, amount, store, category) => {
-    setFormData(prev => ({
-      ...prev,
-      description,
-      amount: amount.toString(),
-      store,
-      category
-    }));
+  const handleClear = () => {
+    Alert.alert(
+      'Clear Form',
+      'Are you sure you want to clear all fields?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            setFormData({
+              description: '',
+              amount: '',
+              store: '',
+              category: '',
+              notes: '',
+            });
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -86,55 +160,93 @@ const AddExpenseScreen = ({ navigation }) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.form}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Add Expense</Text>
+          <Text style={styles.headerSubtext}>
+            Track your spending with detailed information
+          </Text>
+        </View>
+
+        {/* Quick Add Examples */}
+        <View style={styles.quickAddContainer}>
+          <Text style={styles.sectionTitle}>Quick Add</Text>
+          <View style={styles.quickAddGrid}>
+            {quickAddExamples.map((example, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.quickAddButton}
+                onPress={() => handleQuickAdd(example)}
+              >
+                <Text style={styles.quickAddAmount}>R{example.amount}</Text>
+                <Text style={styles.quickAddStore}>{example.store}</Text>
+                <Text style={styles.quickAddDescription}>{example.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Form */}
+        <View style={styles.formContainer}>
+          <Text style={styles.sectionTitle}>Expense Details</Text>
+          
+          {/* Description */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Description *</Text>
+            <Text style={styles.inputLabel}>Description *</Text>
             <TextInput
-              style={styles.input}
-              placeholder="What did you buy?"
+              style={styles.textInput}
+              placeholder="e.g., Coffee, Groceries, Petrol"
               value={formData.description}
               onChangeText={(value) => handleChange('description', value)}
+              placeholderTextColor="#9ca3af"
             />
           </View>
 
+          {/* Amount */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Amount *</Text>
+            <Text style={styles.inputLabel}>Amount (R) *</Text>
             <TextInput
-              style={styles.input}
+              style={styles.textInput}
               placeholder="0.00"
               value={formData.amount}
               onChangeText={(value) => handleChange('amount', value)}
               keyboardType="numeric"
+              placeholderTextColor="#9ca3af"
             />
           </View>
 
+          {/* Store */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Store/Merchant</Text>
+            <Text style={styles.inputLabel}>Store *</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Where did you buy it?"
+              style={styles.textInput}
+              placeholder="e.g., Pick n Pay, Shell, Starbucks"
               value={formData.store}
               onChangeText={(value) => handleChange('store', value)}
+              placeholderTextColor="#9ca3af"
             />
           </View>
 
+          {/* Category */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Category</Text>
-            <View style={styles.categoryContainer}>
+            <Text style={styles.inputLabel}>Category *</Text>
+            <View style={styles.categoryGrid}>
               {categories.map((category) => (
                 <TouchableOpacity
                   key={category}
                   style={[
                     styles.categoryButton,
-                    formData.category === category && styles.categoryButtonSelected
+                    formData.category === category && styles.categoryButtonActive,
                   ]}
                   onPress={() => handleChange('category', category)}
                 >
-                  <Text style={[
-                    styles.categoryButtonText,
-                    formData.category === category && styles.categoryButtonTextSelected
-                  ]}>
+                  <Text
+                    style={[
+                      styles.categoryButtonText,
+                      formData.category === category && styles.categoryButtonTextActive,
+                    ]}
+                  >
                     {category}
                   </Text>
                 </TouchableOpacity>
@@ -142,74 +254,47 @@ const AddExpenseScreen = ({ navigation }) => {
             </View>
           </View>
 
+          {/* Notes */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Notes</Text>
+            <Text style={styles.inputLabel}>Notes (Optional)</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Any additional notes..."
+              style={[styles.textInput, styles.textArea]}
+              placeholder="Additional notes about this expense..."
               value={formData.notes}
               onChangeText={(value) => handleChange('notes', value)}
               multiline
               numberOfLines={3}
+              placeholderTextColor="#9ca3af"
             />
           </View>
         </View>
 
-        {/* Quick Add Examples */}
-        <View style={styles.quickAddContainer}>
-          <Text style={styles.quickAddTitle}>Quick Add</Text>
-          <View style={styles.quickAddGrid}>
-            <TouchableOpacity
-              style={styles.quickAddButton}
-              onPress={() => quickAdd('Coffee', '45.00', 'Starbucks', 'Food')}
-            >
-              <Icon name="local-cafe" size={24} color="#3b82f6" />
-              <Text style={styles.quickAddText}>Coffee</Text>
-              <Text style={styles.quickAddAmount}>R45.00</Text>
-            </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={handleClear}
+          >
+            <Icon name="clear" size={20} color="#6b7280" />
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickAddButton}
-              onPress={() => quickAdd('Petrol', '450.00', 'Shell', 'Transport')}
-            >
-              <Icon name="local-gas-station" size={24} color="#3b82f6" />
-              <Text style={styles.quickAddText}>Petrol</Text>
-              <Text style={styles.quickAddAmount}>R450.00</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickAddButton}
-              onPress={() => quickAdd('Groceries', '853.00', 'Pick n Pay', 'Food')}
-            >
-              <Icon name="shopping-cart" size={24} color="#3b82f6" />
-              <Text style={styles.quickAddText}>Groceries</Text>
-              <Text style={styles.quickAddAmount}>R853.00</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickAddButton}
-              onPress={() => quickAdd('Lunch', '125.00', 'Restaurant', 'Food')}
-            >
-              <Icon name="restaurant" size={24} color="#3b82f6" />
-              <Text style={styles.quickAddText}>Lunch</Text>
-              <Text style={styles.quickAddAmount}>R125.00</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <Text style={styles.submitButtonText}>Adding...</Text>
+            ) : (
+              <>
+                <Icon name="add" size={20} color="#ffffff" />
+                <Text style={styles.submitButtonText}>Add Expense</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Icon name="save" size={20} color="white" />
-          <Text style={styles.submitButtonText}>
-            {loading ? 'Adding...' : 'Add Expense'}
-          </Text>
-        </TouchableOpacity>
-      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -222,31 +307,101 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  form: {
+  header: {
+    backgroundColor: '#ffffff',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  headerSubtext: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  quickAddContainer: {
+    backgroundColor: '#ffffff',
+    margin: 16,
     padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 16,
+  },
+  quickAddGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickAddButton: {
+    backgroundColor: '#f3f4f6',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    minWidth: 80,
+    flex: 1,
+  },
+  quickAddAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  quickAddStore: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  quickAddDescription: {
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  formContainer: {
+    backgroundColor: '#ffffff',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   inputGroup: {
     marginBottom: 20,
   },
-  label: {
+  inputLabel: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: '600',
+    color: '#1f2937',
     marginBottom: 8,
   },
-  input: {
-    backgroundColor: 'white',
+  textInput: {
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    color: '#1f2937',
+    backgroundColor: '#ffffff',
   },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
   },
-  categoryContainer: {
+  categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
@@ -257,84 +412,66 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#f3f4f6',
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#e5e7eb',
   },
-  categoryButtonSelected: {
+  categoryButtonActive: {
     backgroundColor: '#3b82f6',
     borderColor: '#3b82f6',
   },
   categoryButtonText: {
     fontSize: 14,
-    color: '#374151',
+    color: '#6b7280',
+    fontWeight: '500',
   },
-  categoryButtonTextSelected: {
-    color: 'white',
+  categoryButtonTextActive: {
+    color: '#ffffff',
   },
-  quickAddContainer: {
-    padding: 16,
-    backgroundColor: 'white',
-    margin: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  quickAddTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 12,
-  },
-  quickAddGrid: {
+  actionButtons: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    padding: 16,
     gap: 12,
   },
-  quickAddButton: {
+  clearButton: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#f8fafc',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  quickAddText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginTop: 8,
-  },
-  quickAddAmount: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  buttonContainer: {
-    padding: 16,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  submitButton: {
-    backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 8,
-    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  clearButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  submitButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: '#3b82f6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   submitButtonDisabled: {
     backgroundColor: '#9ca3af',
   },
   submitButtonText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

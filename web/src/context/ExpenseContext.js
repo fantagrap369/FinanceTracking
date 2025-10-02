@@ -44,80 +44,229 @@ export const ExpenseProvider = ({ children }) => {
     }
   };
 
-  // Fetch summary
+  // Fetch spending summary
   const fetchSummary = async () => {
     try {
-      const data = await LocalDataService.getSummary();
+      const data = await LocalDataService.getSpendingSummary();
       setSummary(data);
     } catch (err) {
       console.error('Error fetching summary:', err);
     }
   };
 
-  // Add expense
-  const addExpense = async (expenseData) => {
+  // Add new expense
+  const addExpense = async (expense) => {
     try {
-      const data = await LocalDataService.addExpense(expenseData);
-      setExpenses(prev => [...prev, data]);
-      await fetchSummary(); // Refresh summary
-      return data;
+      setLoading(true);
+      const newExpense = await LocalDataService.addExpense(expense);
+      setExpenses(prev => [newExpense, ...prev]);
+      
+      // Refresh summary after adding expense
+      await fetchSummary();
+      
+      setError(null);
+      return newExpense;
     } catch (err) {
       setError('Failed to add expense');
       console.error('Error adding expense:', err);
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Update expense
-  const updateExpense = async (id, expenseData) => {
+  // Update existing expense
+  const updateExpense = async (id, updates) => {
     try {
-      const data = await LocalDataService.updateExpense(id, expenseData);
-      setExpenses(prev => prev.map(exp => exp.id === id ? data : exp));
-      await fetchSummary(); // Refresh summary
-      return data;
+      setLoading(true);
+      const updatedExpense = await LocalDataService.updateExpense(id, updates);
+      setExpenses(prev => 
+        prev.map(expense => 
+          expense.id === id ? updatedExpense : expense
+        )
+      );
+      
+      // Refresh summary after updating expense
+      await fetchSummary();
+      
+      setError(null);
+      return updatedExpense;
     } catch (err) {
       setError('Failed to update expense');
       console.error('Error updating expense:', err);
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Delete expense
   const deleteExpense = async (id) => {
     try {
+      setLoading(true);
       await LocalDataService.deleteExpense(id);
-      setExpenses(prev => prev.filter(exp => exp.id !== id));
-      await fetchSummary(); // Refresh summary
+      setExpenses(prev => prev.filter(expense => expense.id !== id));
+      
+      // Refresh summary after deleting expense
+      await fetchSummary();
+      
+      setError(null);
     } catch (err) {
       setError('Failed to delete expense');
       console.error('Error deleting expense:', err);
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Load all data on mount
-  useEffect(() => {
-    const loadData = async () => {
+  // Get expenses by date range
+  const getExpensesByDateRange = async (startDate, endDate) => {
+    try {
+      return await LocalDataService.getExpensesByDateRange(startDate, endDate);
+    } catch (err) {
+      console.error('Error fetching expenses by date range:', err);
+      return [];
+    }
+  };
+
+  // Get expenses by category
+  const getExpensesByCategory = async (category) => {
+    try {
+      return await LocalDataService.getExpensesByCategory(category);
+    } catch (err) {
+      console.error('Error fetching expenses by category:', err);
+      return [];
+    }
+  };
+
+  // Get expenses by store
+  const getExpensesByStore = async (store) => {
+    try {
+      return await LocalDataService.getExpensesByStore(store);
+    } catch (err) {
+      console.error('Error fetching expenses by store:', err);
+      return [];
+    }
+  };
+
+  // Search expenses
+  const searchExpenses = async (query) => {
+    try {
+      return await LocalDataService.searchExpenses(query);
+    } catch (err) {
+      console.error('Error searching expenses:', err);
+      return [];
+    }
+  };
+
+  // Get monthly spending data
+  const getMonthlySpendingData = async (months = 6) => {
+    try {
+      return await LocalDataService.getMonthlySpendingData(months);
+    } catch (err) {
+      console.error('Error fetching monthly spending data:', err);
+      return [];
+    }
+  };
+
+  // Get daily spending data
+  const getDailySpendingData = async (days = 7) => {
+    try {
+      return await LocalDataService.getDailySpendingData(days);
+    } catch (err) {
+      console.error('Error fetching daily spending data:', err);
+      return [];
+    }
+  };
+
+  // Get statistics
+  const getStatistics = async () => {
+    try {
+      return await LocalDataService.getStatistics();
+    } catch (err) {
+      console.error('Error fetching statistics:', err);
+      return {
+        totalExpenses: 0,
+        thisMonthExpenses: 0,
+        totalSpent: 0,
+        averageSpent: 0,
+        topCategory: null,
+        categoryStats: {}
+      };
+    }
+  };
+
+  // Export expenses to CSV
+  const exportExpensesToCSV = async () => {
+    try {
+      return await LocalDataService.exportExpensesToCSV();
+    } catch (err) {
+      console.error('Error exporting expenses to CSV:', err);
+      throw err;
+    }
+  };
+
+  // Refresh all data
+  const refreshData = async () => {
+    try {
+      setLoading(true);
       await Promise.all([
         fetchExpenses(),
         fetchCategories(),
         fetchSummary()
       ]);
-    };
-    loadData();
+      setError(null);
+    } catch (err) {
+      setError('Failed to refresh data');
+      console.error('Error refreshing data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear error
+  const clearError = () => {
+    setError(null);
+  };
+
+  // Set data source
+  const setDataSourceType = (source) => {
+    setDataSource(source);
+  };
+
+  // Load initial data
+  useEffect(() => {
+    refreshData();
   }, []);
 
   const value = {
+    // State
     expenses,
     categories,
     summary,
     loading,
     error,
+    dataSource,
+    
+    // Actions
+    fetchExpenses,
+    fetchCategories,
+    fetchSummary,
     addExpense,
     updateExpense,
     deleteExpense,
-    fetchExpenses,
-    fetchSummary
+    getExpensesByDateRange,
+    getExpensesByCategory,
+    getExpensesByStore,
+    searchExpenses,
+    getMonthlySpendingData,
+    getDailySpendingData,
+    getStatistics,
+    exportExpensesToCSV,
+    refreshData,
+    clearError,
+    setDataSourceType,
   };
 
   return (

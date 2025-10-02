@@ -158,6 +158,20 @@ const SettingsScreen = () => {
         />
 
         <SettingItem
+          icon="store"
+          title="Store Manager"
+          subtitle="Create and manage stores manually"
+          onPress={() => navigation.navigate('StoreManager')}
+        />
+
+        <SettingItem
+          icon="edit-note"
+          title="Manual Parsing"
+          subtitle="Process failed AI parsing attempts"
+          onPress={() => navigation.navigate('ManualParsing')}
+        />
+
+        <SettingItem
           icon="download"
           title="Export Data"
           subtitle="Download your expense data"

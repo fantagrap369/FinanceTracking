@@ -1,128 +1,199 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calculate } from 'js-levenshtein';
 
-const DESCRIPTIONS_KEY = 'learned_descriptions';
-const SIMILARITY_THRESHOLD = 0.7; // How similar store names need to be to match
+const DESCRIPTION_STORAGE_KEY = 'learned_descriptions';
+const SIMILARITY_THRESHOLD = 0.7; // 70% similarity
 
 class DescriptionLearner {
   constructor() {
-    this.descriptions = new Map();
-    this.loadDescriptions();
+    this.descriptions = new Map(); // Map<normalizedStoreName, {description, category, amount, count, lastUsed, originalStore, isManual}>
+    this.init();
   }
 
+  async init() {
+    await this.loadDescriptions();
+  }
+
+  // Load descriptions from AsyncStorage
   async loadDescriptions() {
     try {
-      const stored = await AsyncStorage.getItem(DESCRIPTIONS_KEY);
+      const stored = await AsyncStorage.getItem(DESCRIPTION_STORAGE_KEY);
       if (stored) {
         const data = JSON.parse(stored);
         this.descriptions = new Map(data);
+        console.log(`Loaded ${this.descriptions.size} learned descriptions`);
       }
     } catch (error) {
       console.error('Error loading descriptions:', error);
     }
   }
 
+  // Save descriptions to AsyncStorage
   async saveDescriptions() {
     try {
       const data = Array.from(this.descriptions.entries());
-      await AsyncStorage.setItem(DESCRIPTIONS_KEY, JSON.stringify(data));
+      await AsyncStorage.setItem(DESCRIPTION_STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
       console.error('Error saving descriptions:', error);
     }
   }
 
-  // Calculate similarity between two strings (0-1, where 1 is identical)
-  calculateSimilarity(str1, str2) {
-    const s1 = str1.toLowerCase().trim();
-    const s2 = str2.toLowerCase().trim();
-    
-    if (s1 === s2) return 1.0;
-    
-    // Check if one contains the other
-    if (s1.includes(s2) || s2.includes(s1)) return 0.8;
-    
-    // Simple Levenshtein distance-based similarity
-    const longer = s1.length > s2.length ? s1 : s2;
-    const shorter = s1.length > s2.length ? s2 : s1;
-    
-    if (longer.length === 0) return 1.0;
-    
-    const distance = this.levenshteinDistance(longer, shorter);
-    return (longer.length - distance) / longer.length;
-  }
-
-  levenshteinDistance(str1, str2) {
-    const matrix = [];
-    
-    for (let i = 0; i <= str2.length; i++) {
-      matrix[i] = [i];
-    }
-    
-    for (let j = 0; j <= str1.length; j++) {
-      matrix[0][j] = j;
-    }
-    
-    for (let i = 1; i <= str2.length; i++) {
-      for (let j = 1; j <= str1.length; j++) {
-        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
-        }
-      }
-    }
-    
-    return matrix[str2.length][str1.length];
-  }
-
-  // Find the most similar store name in our learned descriptions
+  // Find similar store using Levenshtein distance
   findSimilarStore(storeName) {
-    let bestMatch = null;
-    let bestSimilarity = 0;
-
-    for (const [learnedStore, data] of this.descriptions) {
-      const similarity = this.calculateSimilarity(storeName, learnedStore);
-      if (similarity > bestSimilarity && similarity >= SIMILARITY_THRESHOLD) {
-        bestMatch = learnedStore;
-        bestSimilarity = similarity;
+    const normalizedInput = storeName.toLowerCase().trim();
+    
+    for (const [normalizedStore, data] of this.descriptions) {
+      const similarity = this.calculateSimilarity(normalizedInput, normalizedStore);
+      if (similarity >= SIMILARITY_THRESHOLD) {
+        return {
+          store: data.originalStore,
+          description: data.description,
+          category: data.category,
+          similarity: similarity,
+          count: data.count,
+          lastUsed: data.lastUsed
+        };
       }
     }
-
-    return bestMatch ? this.descriptions.get(bestMatch) : null;
+    return null;
   }
 
-  // Learn a new description for a store
-  async learnDescription(storeName, description, category, amount) {
+  // Calculate similarity between two strings
+  calculateSimilarity(str1, str2) {
+    const maxLength = Math.max(str1.length, str2.length);
+    if (maxLength === 0) return 1;
+    
+    const distance = calculate(str1, str2);
+    return 1 - (distance / maxLength);
+  }
+
+  // Get description for a store (learns if new)
+  async getDescription(storeName, amount = 0) {
+    const similarData = this.findSimilarStore(storeName);
+    
+    if (similarData) {
+      // Update usage count and last used
+      const normalizedStore = storeName.toLowerCase().trim();
+      const existingData = this.descriptions.get(normalizedStore);
+      if (existingData) {
+        existingData.count += 1;
+        existingData.lastUsed = new Date().toISOString();
+        existingData.amount = amount; // Update with latest amount
+        await this.saveDescriptions();
+      }
+      return similarData.description;
+    }
+
+    // Generate default description for new store
+    const defaultDescription = this.generateDefaultDescription(storeName);
+    const defaultCategory = this.generateDefaultCategory(storeName);
+    
+    // Learn this new store
+    await this.learnDescription(storeName, defaultDescription, defaultCategory, amount);
+    
+    return defaultDescription;
+  }
+
+  // Learn a new description
+  async learnDescription(storeName, description, category, amount = 0) {
     const normalizedStore = storeName.toLowerCase().trim();
     
-    // Store the description with metadata
-    this.descriptions.set(normalizedStore, {
-      description,
-      category,
-      amount: amount || 0,
-      count: 1,
-      lastUsed: new Date().toISOString(),
-      originalStore: storeName, // Keep original casing
-      isManual: false // Track if this was manually created
-    });
-
+    if (this.descriptions.has(normalizedStore)) {
+      // Update existing
+      const existing = this.descriptions.get(normalizedStore);
+      existing.description = description;
+      existing.category = category;
+      existing.amount = amount;
+      existing.count += 1;
+      existing.lastUsed = new Date().toISOString();
+    } else {
+      // Create new
+      this.descriptions.set(normalizedStore, {
+        description,
+        category,
+        amount,
+        count: 1,
+        lastUsed: new Date().toISOString(),
+        originalStore: storeName,
+        isManual: false
+      });
+    }
+    
     await this.saveDescriptions();
-    console.log(`Learned description for "${storeName}": "${description}"`);
+    console.log(`Learned description for "${storeName}": "${description}" in "${category}"`);
   }
 
-  // Manually create a store entry
+  // Update existing description
+  async updateDescription(storeName, newDescription, newCategory) {
+    const normalizedStore = storeName.toLowerCase().trim();
+    
+    if (this.descriptions.has(normalizedStore)) {
+      const data = this.descriptions.get(normalizedStore);
+      data.description = newDescription;
+      data.category = newCategory;
+      data.lastUsed = new Date().toISOString();
+      
+      await this.saveDescriptions();
+      console.log(`Updated description for "${storeName}"`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Delete description
+  async deleteDescription(storeName) {
+    const normalizedStore = storeName.toLowerCase().trim();
+    
+    if (this.descriptions.has(normalizedStore)) {
+      this.descriptions.delete(normalizedStore);
+      await this.saveDescriptions();
+      console.log(`Deleted description for "${storeName}"`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Get all descriptions
+  getAllDescriptions() {
+    const result = [];
+    for (const [normalizedStore, data] of this.descriptions) {
+      result.push({
+        store: data.originalStore,
+        normalizedStore,
+        description: data.description,
+        category: data.category,
+        amount: data.amount,
+        count: data.count,
+        lastUsed: data.lastUsed,
+        isManual: data.isManual
+      });
+    }
+    return result.sort((a, b) => b.count - a.count); // Sort by usage count
+  }
+
+  // Get available categories
+  getAvailableCategories() {
+    const categories = new Set();
+    const defaultCategories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Other'];
+    defaultCategories.forEach(cat => categories.add(cat));
+    
+    for (const [store, data] of this.descriptions) {
+      categories.add(data.category);
+    }
+    
+    return Array.from(categories).sort();
+  }
+
+  // Create manual store
   async createManualStore(storeName, description, category) {
     const normalizedStore = storeName.toLowerCase().trim();
     
-    // Check if store already exists
     if (this.descriptions.has(normalizedStore)) {
       throw new Error('Store already exists');
     }
     
-    // Create manual entry
     this.descriptions.set(normalizedStore, {
       description,
       category,
@@ -132,171 +203,146 @@ class DescriptionLearner {
       originalStore: storeName,
       isManual: true // Mark as manually created
     });
-
+    
     await this.saveDescriptions();
     console.log(`Manually created store "${storeName}": "${description}" in "${category}"`);
     return true;
   }
 
-  // Update existing description (if user corrects it)
-  async updateDescription(storeName, newDescription, newCategory) {
-    const normalizedStore = storeName.toLowerCase().trim();
-    
-    if (this.descriptions.has(normalizedStore)) {
-      const data = this.descriptions.get(normalizedStore);
-      data.description = newDescription;
-      data.category = newCategory;
-      data.count += 1;
-      data.lastUsed = new Date().toISOString();
-      
-      this.descriptions.set(normalizedStore, data);
-      await this.saveDescriptions();
-      console.log(`Updated description for "${storeName}": "${newDescription}"`);
-    }
-  }
-
-  // Get description for a store (either learned or generate default)
-  async getDescription(storeName, amount) {
-    if (!storeName) return 'Unknown Purchase';
-
-    // First, try to find a similar store we've learned about
-    const similarData = this.findSimilarStore(storeName);
-    if (similarData) {
-      // Update usage count
-      similarData.count += 1;
-      similarData.lastUsed = new Date().toISOString();
-      await this.saveDescriptions();
-      return similarData.description;
-    }
-
-    // If no similar store found, generate a default description
-    const defaultDescription = this.generateDefaultDescription(storeName, amount);
-    
-    // Learn this new description for future use
-    await this.learnDescription(storeName, defaultDescription, 'Other', amount);
-    
-    return defaultDescription;
-  }
-
-  // Generate a default description based on store name and amount
-  generateDefaultDescription(storeName, amount) {
-    const storeLower = storeName.toLowerCase();
-    
-    // Common patterns for South African stores
-    if (storeLower.includes('coffee') || storeLower.includes('cafe')) {
-      return 'Coffee';
-    }
-    if (storeLower.includes('petrol') || storeLower.includes('fuel') || 
-        storeLower.includes('shell') || storeLower.includes('engen') ||
-        storeLower.includes('sasol') || storeLower.includes('bp')) {
-      return 'Petrol';
-    }
-    if (storeLower.includes('grocery') || storeLower.includes('supermarket') ||
-        storeLower.includes('pick') || storeLower.includes('checkers') ||
-        storeLower.includes('woolworths') || storeLower.includes('spar')) {
-      return 'Groceries';
-    }
-    if (storeLower.includes('restaurant') || storeLower.includes('food') ||
-        storeLower.includes('mcdonalds') || storeLower.includes('kfc') ||
-        storeLower.includes('nandos')) {
-      return 'Food';
-    }
-    if (storeLower.includes('pharmacy') || storeLower.includes('dischem') ||
-        storeLower.includes('clicks')) {
-      return 'Pharmacy';
-    }
-    if (storeLower.includes('online') || storeLower.includes('takealot') ||
-        storeLower.includes('take2')) {
-      return 'Online Purchase';
-    }
-    
-    // If amount gives us a clue
-    if (amount < 50) return 'Small Purchase';
-    if (amount < 200) return 'Medium Purchase';
-    if (amount < 500) return 'Large Purchase';
-    
-    return `Purchase at ${storeName}`;
-  }
-
-  // Get all learned descriptions for management
-  getAllDescriptions() {
-    return Array.from(this.descriptions.entries()).map(([store, data]) => ({
-      store: data.originalStore,
-      description: data.description,
-      category: data.category,
-      count: data.count,
-      lastUsed: data.lastUsed
-    }));
-  }
-
-  // Delete a learned description
-  async deleteDescription(storeName) {
-    const normalizedStore = storeName.toLowerCase().trim();
-    if (this.descriptions.has(normalizedStore)) {
-      this.descriptions.delete(normalizedStore);
-      await this.saveDescriptions();
-      console.log(`Deleted description for "${storeName}"`);
-    }
-  }
-
-  // Get all available categories
-  getAvailableCategories() {
-    const categories = new Set();
-    
-    // Add default categories
-    const defaultCategories = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Other'];
-    defaultCategories.forEach(cat => categories.add(cat));
-    
-    // Add categories from learned stores
-    for (const [store, data] of this.descriptions) {
-      categories.add(data.category);
-    }
-    
-    return Array.from(categories).sort();
-  }
-
-  // Create a custom category
+  // Create custom category
   async createCustomCategory(categoryName) {
     const normalizedCategory = categoryName.trim();
-    
     if (!normalizedCategory) {
       throw new Error('Category name cannot be empty');
     }
     
-    // Check if category already exists
     const existingCategories = this.getAvailableCategories();
     if (existingCategories.includes(normalizedCategory)) {
       throw new Error('Category already exists');
     }
     
-    // Category will be available for use in future store creations
     console.log(`Custom category "${normalizedCategory}" is now available`);
     return true;
   }
 
-  // Get statistics about learned descriptions
+  // Generate default description based on store name
+  generateDefaultDescription(storeName) {
+    const name = storeName.toLowerCase();
+    
+    // Food related
+    if (name.includes('pick') || name.includes('shoprite') || name.includes('checkers') || 
+        name.includes('woolworths') || name.includes('spar') || name.includes('food')) {
+      return 'Groceries';
+    }
+    
+    // Fast food
+    if (name.includes('kfc') || name.includes('mcdonalds') || name.includes('nando') || 
+        name.includes('spur') || name.includes('wimpy') || name.includes('burger')) {
+      return 'Fast Food';
+    }
+    
+    // Coffee
+    if (name.includes('starbucks') || name.includes('coffee') || name.includes('cafe')) {
+      return 'Coffee';
+    }
+    
+    // Transport
+    if (name.includes('shell') || name.includes('engen') || name.includes('bp') || 
+        name.includes('petrol') || name.includes('fuel') || name.includes('uber') || 
+        name.includes('bolt') || name.includes('taxi')) {
+      return 'Transport';
+    }
+    
+    // Shopping
+    if (name.includes('clothing') || name.includes('fashion') || name.includes('store') || 
+        name.includes('shop') || name.includes('retail')) {
+      return 'Shopping';
+    }
+    
+    // Bills
+    if (name.includes('eskom') || name.includes('municipality') || name.includes('water') || 
+        name.includes('electricity') || name.includes('bill') || name.includes('payment')) {
+      return 'Bills';
+    }
+    
+    // Entertainment
+    if (name.includes('movie') || name.includes('cinema') || name.includes('netflix') || 
+        name.includes('spotify') || name.includes('entertainment')) {
+      return 'Entertainment';
+    }
+    
+    // Default
+    return 'Purchase';
+  }
+
+  // Generate default category based on store name
+  generateDefaultCategory(storeName) {
+    const name = storeName.toLowerCase();
+    
+    // Food related
+    if (name.includes('pick') || name.includes('shoprite') || name.includes('checkers') || 
+        name.includes('woolworths') || name.includes('spar') || name.includes('food') ||
+        name.includes('kfc') || name.includes('mcdonalds') || name.includes('nando') || 
+        name.includes('spur') || name.includes('wimpy') || name.includes('burger') ||
+        name.includes('starbucks') || name.includes('coffee') || name.includes('cafe')) {
+      return 'Food';
+    }
+    
+    // Transport
+    if (name.includes('shell') || name.includes('engen') || name.includes('bp') || 
+        name.includes('petrol') || name.includes('fuel') || name.includes('uber') || 
+        name.includes('bolt') || name.includes('taxi')) {
+      return 'Transport';
+    }
+    
+    // Shopping
+    if (name.includes('clothing') || name.includes('fashion') || name.includes('store') || 
+        name.includes('shop') || name.includes('retail')) {
+      return 'Shopping';
+    }
+    
+    // Bills
+    if (name.includes('eskom') || name.includes('municipality') || name.includes('water') || 
+        name.includes('electricity') || name.includes('bill') || name.includes('payment')) {
+      return 'Bills';
+    }
+    
+    // Entertainment
+    if (name.includes('movie') || name.includes('cinema') || name.includes('netflix') || 
+        name.includes('spotify') || name.includes('entertainment')) {
+      return 'Entertainment';
+    }
+    
+    // Default
+    return 'Other';
+  }
+
+  // Get statistics
   getStats() {
     const total = this.descriptions.size;
+    const manual = Array.from(this.descriptions.values()).filter(d => d.isManual).length;
+    const auto = total - manual;
+    
     const categories = {};
-    let totalCount = 0;
-    let manualStores = 0;
-
     for (const [store, data] of this.descriptions) {
       categories[data.category] = (categories[data.category] || 0) + 1;
-      totalCount += data.count;
-      if (data.isManual) {
-        manualStores++;
-      }
     }
-
+    
     return {
-      totalStores: total,
-      totalTransactions: totalCount,
-      manualStores,
-      learnedStores: total - manualStores,
+      total,
+      manual,
+      auto,
       categories,
-      averageTransactionsPerStore: total > 0 ? (totalCount / total).toFixed(1) : 0
+      mostUsed: this.getAllDescriptions().slice(0, 5)
     };
+  }
+
+  // Clear all descriptions
+  async clearAllDescriptions() {
+    this.descriptions.clear();
+    await this.saveDescriptions();
+    console.log('All descriptions cleared');
+    return true;
   }
 }
 

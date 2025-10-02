@@ -2,6 +2,9 @@ import { NativeModules, NativeEventEmitter } from 'react-native';
 import ExpenseService from './ExpenseService';
 import DescriptionLearner from './DescriptionLearner';
 import AIParser from './AIParser';
+import FailedParsingManager from './FailedParsingManager';
+
+const { NotificationListener } = NativeModules;
 
 class NotificationListener {
   constructor() {
@@ -11,19 +14,22 @@ class NotificationListener {
 
   startListening() {
     try {
-      // This would require a native module to read notifications
-      // For now, we'll simulate the functionality
-      console.log('Notification listener started (simulated)');
+      if (NotificationListener) {
+        // Use the actual native module
+        NotificationListener.startListening();
+        this.eventEmitter = new NativeEventEmitter(NotificationListener);
+        this.eventEmitter.addListener('NotificationReceived', this.handleNotificationReceived.bind(this));
+        console.log('Notification listener started (native)');
+      } else {
+        // Fallback to simulation if native module not available
+        console.log('Notification listener started (simulated)');
+        this.simulateNotificationProcessing();
+      }
       this.isListening = true;
-      
-      // In a real implementation, you would:
-      // 1. Create a native Android module to access notification listener service
-      // 2. Set up event listeners for incoming notifications
-      // 3. Parse notification content for expense information
-      
-      this.simulateNotificationProcessing();
     } catch (error) {
       console.error('Error starting notification listener:', error);
+      // Fallback to simulation
+      this.simulateNotificationProcessing();
     }
   }
 
@@ -32,8 +38,16 @@ class NotificationListener {
       this.eventEmitter.removeAllListeners();
       this.eventEmitter = null;
     }
+    if (NotificationListener) {
+      NotificationListener.stopListening();
+    }
     this.isListening = false;
     console.log('Notification listener stopped');
+  }
+
+  handleNotificationReceived(notification) {
+    console.log('Notification received:', notification);
+    this.processNotification(notification);
   }
 
   // Simulate processing notifications for expense detection
@@ -82,16 +96,16 @@ class NotificationListener {
 
   async parseNotificationForExpense(notification) {
     const { title, text } = notification;
-    
+
     try {
       // Try AI parsing first (with fallback to regex)
       const parseResult = await AIParser.parseWithFallback(text, 'notification');
-      
+
       if (parseResult.isExpense && parseResult.confidence > 0.5) {
         // Use the learning system to get description and category
         const description = await DescriptionLearner.getDescription(parseResult.store, parseResult.amount);
         const category = await this.categorizeStore(parseResult.store);
-        
+
         return {
           description,
           amount: parseResult.amount,
@@ -105,8 +119,17 @@ class NotificationListener {
       console.error('AI parsing failed, using fallback:', error);
     }
 
-    // Fallback to original regex parsing
-    return this.parseWithRegex(notification);
+    // Try regex parsing as fallback
+    const regexResult = await this.parseWithRegex(notification);
+    if (regexResult) {
+      return regexResult;
+    }
+
+    // If both AI and regex fail, store for manual processing
+    console.log('Both AI and regex parsing failed, storing for manual processing');
+    await FailedParsingManager.addFailedAttempt(text, 'notification');
+    
+    return null; // Indicate parsing failed
   }
 
   // Fallback regex parsing method

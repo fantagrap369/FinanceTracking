@@ -12,6 +12,7 @@ import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { format, subDays, subMonths } from 'date-fns';
 import ExpenseService from '../services/ExpenseService';
+import FailedParsingManager from '../services/FailedParsingManager';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -20,6 +21,7 @@ const DashboardScreen = ({ navigation }) => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [failedAttemptsCount, setFailedAttemptsCount] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -28,12 +30,13 @@ const DashboardScreen = ({ navigation }) => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [expensesData, summaryData] = await Promise.all([
-        ExpenseService.getExpenses(),
-        ExpenseService.getSummary()
-      ]);
-      setExpenses(expensesData);
+      const expenseData = await ExpenseService.getExpenses();
+      const summaryData = await ExpenseService.getSpendingSummary();
+      const failedAttempts = FailedParsingManager.getAllFailedAttempts();
+      
+      setExpenses(expenseData);
       setSummary(summaryData);
+      setFailedAttemptsCount(failedAttempts.length);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -47,67 +50,59 @@ const DashboardScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
+  const formatCurrency = (amount) => {
+    return `R${amount.toFixed(2)}`;
+  };
+
+  const getRecentExpenses = () => {
+    return expenses
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 5);
+  };
+
   const getChartData = () => {
     const last7Days = [];
+    const today = new Date();
+    
     for (let i = 6; i >= 0; i--) {
-      const date = subDays(new Date(), i);
-      const dayExpenses = expenses.filter(expense => 
-        format(new Date(expense.createdAt), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-      );
-      const total = dayExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      const date = subDays(today, i);
+      const dayExpenses = expenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return expenseDate.toDateString() === date.toDateString();
+      });
+      
+      const total = dayExpenses.reduce((sum, exp) => sum + exp.amount, 0);
       last7Days.push({
-        date: format(date, 'MMM dd'),
+        date: format(date, 'EEE'),
         amount: total
       });
     }
+    
     return last7Days;
   };
 
   const getCategoryData = () => {
-    const categoryTotals = {};
-    expenses.forEach(expense => {
-      const category = expense.category || 'Other';
-      categoryTotals[category] = (categoryTotals[category] || 0) + (expense.amount || 0);
-    });
-
-    return Object.entries(categoryTotals).map(([category, amount], index) => ({
+    if (!summary?.categoryBreakdown) return [];
+    
+    const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+    let colorIndex = 0;
+    
+    return Object.entries(summary.categoryBreakdown).map(([category, amount]) => ({
       name: category,
       population: amount,
-      color: `hsl(${index * 60}, 70%, 50%)`,
+      color: colors[colorIndex++ % colors.length],
       legendFontColor: '#7F7F7F',
       legendFontSize: 12,
     }));
   };
 
-  const chartConfig = {
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    style: {
-      borderRadius: 16,
-    },
-    propsForDots: {
-      r: '6',
-      strokeWidth: '2',
-      stroke: '#3b82f6',
-    },
-  };
-
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Loading dashboard...</Text>
       </View>
     );
   }
-
-  const chartData = getChartData();
-  const categoryData = getCategoryData();
-  const totalSpent = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-  const avgTransaction = expenses.length > 0 ? totalSpent / expenses.length : 0;
 
   return (
     <ScrollView 
@@ -119,68 +114,88 @@ const DashboardScreen = ({ navigation }) => {
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
         <View style={styles.summaryCard}>
-          <Icon name="attach-money" size={24} color="#059669" />
-          <Text style={styles.summaryValue}>R{totalSpent.toFixed(2)}</Text>
-          <Text style={styles.summaryLabel}>Total Spent</Text>
-        </View>
-        
-        <View style={styles.summaryCard}>
-          <Icon name="receipt" size={24} color="#3b82f6" />
-          <Text style={styles.summaryValue}>{expenses.length}</Text>
-          <Text style={styles.summaryLabel}>Transactions</Text>
-        </View>
-      </View>
-
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
-          <Icon name="trending-up" size={24} color="#8b5cf6" />
-          <Text style={styles.summaryValue}>R{avgTransaction.toFixed(2)}</Text>
-          <Text style={styles.summaryLabel}>Avg/Transaction</Text>
-        </View>
-        
-        <View style={styles.summaryCard}>
-          <Icon name="today" size={24} color="#f59e0b" />
-          <Text style={styles.summaryValue}>
-            R{expenses
-              .filter(exp => format(new Date(exp.createdAt), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'))
-              .reduce((sum, exp) => sum + (exp.amount || 0), 0)
-              .toFixed(2)}
+          <Text style={styles.summaryLabel}>This Month</Text>
+          <Text style={styles.summaryAmount}>
+            {formatCurrency(summary?.thisMonth?.total || 0)}
           </Text>
-          <Text style={styles.summaryLabel}>Today</Text>
+          <Text style={styles.summarySubtext}>
+            {summary?.thisMonth?.count || 0} transactions
+          </Text>
+        </View>
+        
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>Last Month</Text>
+          <Text style={styles.summaryAmount}>
+            {formatCurrency(summary?.lastMonth?.total || 0)}
+          </Text>
+          <Text style={styles.summarySubtext}>
+            {summary?.lastMonth?.count || 0} transactions
+          </Text>
         </View>
       </View>
 
-      {/* 7-Day Spending Chart */}
-      {chartData.length > 0 && (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>7-Day Spending Trend</Text>
-          <LineChart
-            data={{
-              labels: chartData.map(d => d.date),
-              datasets: [{
-                data: chartData.map(d => d.amount),
-                color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-                strokeWidth: 2
-              }]
-            }}
-            width={screenWidth - 32}
-            height={220}
-            chartConfig={chartConfig}
-            bezier
-            style={styles.chart}
+      {/* Change Indicator */}
+      {summary?.change !== undefined && (
+        <View style={styles.changeContainer}>
+          <Icon 
+            name={summary.change >= 0 ? 'trending-up' : 'trending-down'} 
+            size={20} 
+            color={summary.change >= 0 ? '#ef4444' : '#22c55e'} 
           />
+          <Text style={[
+            styles.changeText, 
+            { color: summary.change >= 0 ? '#ef4444' : '#22c55e' }
+          ]}>
+            {summary.change >= 0 ? '+' : ''}{summary.change.toFixed(1)}% from last month
+          </Text>
         </View>
       )}
 
+      {/* Charts */}
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Last 7 Days</Text>
+        <LineChart
+          data={{
+            labels: getChartData().map(d => d.date),
+            datasets: [{
+              data: getChartData().map(d => d.amount),
+              color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+              strokeWidth: 2
+            }]
+          }}
+          width={screenWidth - 40}
+          height={220}
+          chartConfig={{
+            backgroundColor: '#ffffff',
+            backgroundGradientFrom: '#ffffff',
+            backgroundGradientTo: '#ffffff',
+            decimalPlaces: 0,
+            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+            labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            style: {
+              borderRadius: 16
+            },
+            propsForDots: {
+              r: '6',
+              strokeWidth: '2',
+              stroke: '#3b82f6'
+            }
+          }}
+          style={styles.chart}
+        />
+      </View>
+
       {/* Category Breakdown */}
-      {categoryData.length > 0 && (
+      {getCategoryData().length > 0 && (
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>Spending by Category</Text>
           <PieChart
-            data={categoryData}
-            width={screenWidth - 32}
+            data={getCategoryData()}
+            width={screenWidth - 40}
             height={220}
-            chartConfig={chartConfig}
+            chartConfig={{
+              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            }}
             accessor="population"
             backgroundColor="transparent"
             paddingLeft="15"
@@ -191,37 +206,61 @@ const DashboardScreen = ({ navigation }) => {
 
       {/* Recent Expenses */}
       <View style={styles.recentContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Expenses</Text>
+        <View style={styles.recentHeader}>
+          <Text style={styles.recentTitle}>Recent Expenses</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Expenses')}>
-            <Text style={styles.seeAllText}>See All</Text>
+            <Text style={styles.viewAllText}>View All</Text>
           </TouchableOpacity>
         </View>
         
-        {expenses.slice(0, 5).map((expense) => (
-          <View key={expense.id} style={styles.expenseItem}>
-            <View style={styles.expenseInfo}>
-              <Text style={styles.expenseDescription}>
-                {expense.description || 'No description'}
-              </Text>
-              <Text style={styles.expenseDetails}>
-                {expense.store && `${expense.store} • `}
-                {format(new Date(expense.createdAt), 'MMM dd')}
-              </Text>
+        {getRecentExpenses().map((expense, index) => (
+          <View key={expense.id} style={styles.recentItem}>
+            <View style={styles.recentItemLeft}>
+              <View style={styles.recentItemIcon}>
+                <Icon name="receipt" size={20} color="#6b7280" />
+              </View>
+              <View style={styles.recentItemDetails}>
+                <Text style={styles.recentItemDescription}>{expense.description}</Text>
+                <Text style={styles.recentItemStore}>{expense.store}</Text>
+                <Text style={styles.recentItemDate}>
+                  {format(new Date(expense.date), 'MMM dd, yyyy')}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.expenseAmount}>
-              -R{expense.amount?.toFixed(2) || '0.00'}
+            <Text style={styles.recentItemAmount}>
+              {formatCurrency(expense.amount)}
             </Text>
           </View>
         ))}
         
-        {expenses.length === 0 && (
+        {getRecentExpenses().length === 0 && (
           <View style={styles.emptyState}>
             <Icon name="receipt" size={48} color="#d1d5db" />
-            <Text style={styles.emptyText}>No expenses yet</Text>
-            <Text style={styles.emptySubtext}>Add your first expense to get started</Text>
+            <Text style={styles.emptyStateText}>No expenses yet</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Add your first expense to get started
+            </Text>
           </View>
         )}
+      </View>
+
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity 
+          style={styles.quickActionButton}
+          onPress={() => navigation.navigate('Add')}
+        >
+          <Icon name="add" size={24} color="#ffffff" />
+          <Text style={styles.quickActionText}>Add Expense</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.quickActionButton, styles.secondaryButton]}
+          onPress={() => navigation.navigate('Expenses')}
+        >
+          <Icon name="list" size={24} color="#3b82f6" />
+          <Text style={[styles.quickActionText, styles.secondaryButtonText]}>View All</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -232,10 +271,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  centerContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
   loadingText: {
     fontSize: 16,
@@ -248,40 +288,55 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
     padding: 16,
     borderRadius: 12,
-    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  summaryValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 8,
+    shadowRadius: 4,
+    elevation: 3,
   },
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6b7280',
-    marginTop: 4,
+    marginBottom: 4,
+  },
+  summaryAmount: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  summarySubtext: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  changeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  changeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 4,
   },
   chartContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
     margin: 16,
     padding: 16,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   chartTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 16,
@@ -290,33 +345,33 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   recentContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
     margin: 16,
     padding: 16,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  sectionHeader: {
+  recentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 16,
+  recentTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1f2937',
   },
-  seeAllText: {
+  viewAllText: {
     fontSize: 14,
     color: '#3b82f6',
     fontWeight: '500',
   },
-  expenseItem: {
+  recentItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -324,37 +379,91 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
-  expenseInfo: {
+  recentItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  expenseDescription: {
+  recentItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  recentItemDetails: {
+    flex: 1,
+  },
+  recentItemDescription: {
     fontSize: 16,
     fontWeight: '500',
     color: '#1f2937',
+    marginBottom: 2,
   },
-  expenseDetails: {
-    fontSize: 12,
+  recentItemStore: {
+    fontSize: 14,
     color: '#6b7280',
-    marginTop: 2,
+    marginBottom: 2,
   },
-  expenseAmount: {
+  recentItemDate: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  recentItemAmount: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#dc2626',
+    color: '#1f2937',
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 32,
   },
-  emptyText: {
-    fontSize: 16,
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '500',
     color: '#6b7280',
-    marginTop: 12,
+    marginTop: 16,
   },
-  emptySubtext: {
+  emptyStateSubtext: {
     fontSize: 14,
     color: '#9ca3af',
     marginTop: 4,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: '#3b82f6',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  secondaryButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#3b82f6',
+  },
+  quickActionText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  secondaryButtonText: {
+    color: '#3b82f6',
   },
 });
 

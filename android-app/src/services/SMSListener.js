@@ -2,6 +2,9 @@ import { NativeModules, NativeEventEmitter, PermissionsAndroid } from 'react-nat
 import ExpenseService from './ExpenseService';
 import DescriptionLearner from './DescriptionLearner';
 import AIParser from './AIParser';
+import FailedParsingManager from './FailedParsingManager';
+
+const { SMSListener: SMSListenerModule } = NativeModules;
 
 class SMSListener {
   constructor() {
@@ -36,19 +39,22 @@ class SMSListener {
 
   setupSMSListener() {
     try {
-      // This would require a native module to read SMS
-      // For now, we'll simulate the functionality
-      console.log('SMS listener started (simulated)');
+      if (SMSListenerModule) {
+        // Use the actual native module
+        SMSListenerModule.startListening();
+        this.eventEmitter = new NativeEventEmitter(SMSListenerModule);
+        this.eventEmitter.addListener('SMSReceived', this.handleSMSReceived.bind(this));
+        console.log('SMS listener started (native)');
+      } else {
+        // Fallback to simulation if native module not available
+        console.log('SMS listener started (simulated)');
+        this.simulateSMSProcessing();
+      }
       this.isListening = true;
-      
-      // In a real implementation, you would:
-      // 1. Create a native Android module to access SMS content provider
-      // 2. Set up a content observer for new SMS messages
-      // 3. Parse SMS content for expense information
-      
-      this.simulateSMSProcessing();
     } catch (error) {
       console.error('Error setting up SMS listener:', error);
+      // Fallback to simulation
+      this.simulateSMSProcessing();
     }
   }
 
@@ -57,8 +63,16 @@ class SMSListener {
       this.eventEmitter.removeAllListeners();
       this.eventEmitter = null;
     }
+    if (SMSListenerModule) {
+      SMSListenerModule.stopListening();
+    }
     this.isListening = false;
     console.log('SMS listener stopped');
+  }
+
+  handleSMSReceived(sms) {
+    console.log('SMS received:', sms);
+    this.processSMS(sms);
   }
 
   // Simulate processing SMS messages for expense detection
@@ -112,16 +126,16 @@ class SMSListener {
 
   async parseSMSForExpense(sms) {
     const { body, sender } = sms;
-    
+
     try {
       // Try AI parsing first (with fallback to regex)
       const parseResult = await AIParser.parseWithFallback(body, 'sms');
-      
+
       if (parseResult.isExpense && parseResult.confidence > 0.5) {
         // Use the learning system to get description and category
         const description = await DescriptionLearner.getDescription(parseResult.store, parseResult.amount);
         const category = await this.categorizeStore(parseResult.store);
-        
+
         return {
           description,
           amount: parseResult.amount,
@@ -135,8 +149,17 @@ class SMSListener {
       console.error('AI parsing failed, using fallback:', error);
     }
 
-    // Fallback to original regex parsing
-    return this.parseWithRegex(sms);
+    // Try regex parsing as fallback
+    const regexResult = await this.parseWithRegex(sms);
+    if (regexResult) {
+      return regexResult;
+    }
+
+    // If both AI and regex fail, store for manual processing
+    console.log('Both AI and regex parsing failed, storing for manual processing');
+    await FailedParsingManager.addFailedAttempt(body, 'sms');
+    
+    return null; // Indicate parsing failed
   }
 
   // Fallback regex parsing method

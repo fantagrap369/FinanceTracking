@@ -21,10 +21,13 @@ import AddExpenseScreen from './src/screens/AddExpenseScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import DescriptionManagerScreen from './src/screens/DescriptionManagerScreen';
 import AISettingsScreen from './src/screens/AISettingsScreen';
+import StoreManagerScreen from './src/screens/StoreManagerScreen';
+import ManualParsingScreen from './src/screens/ManualParsingScreen';
 
 // Import notification listener
 import NotificationListener from './src/services/NotificationListener';
 import SMSListener from './src/services/SMSListener';
+import FailedParsingManager from './src/services/FailedParsingManager';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -56,16 +59,45 @@ function SettingsStack() {
           headerTintColor: '#1f2937',
         }}
       />
+      <Stack.Screen 
+        name="StoreManager" 
+        component={StoreManagerScreen}
+        options={{ 
+          title: 'Store Manager',
+          headerStyle: { backgroundColor: '#ffffff' },
+          headerTintColor: '#1f2937',
+        }}
+      />
+      <Stack.Screen 
+        name="ManualParsing" 
+        component={ManualParsingScreen}
+        options={{ 
+          title: 'Manual Parsing',
+          headerStyle: { backgroundColor: '#ffffff' },
+          headerTintColor: '#1f2937',
+        }}
+      />
     </Stack.Navigator>
   );
 }
 
 const App = () => {
   const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [failedAttemptsCount, setFailedAttemptsCount] = useState(0);
 
   useEffect(() => {
     requestPermissions();
+    loadFailedAttemptsCount();
   }, []);
+
+  const loadFailedAttemptsCount = async () => {
+    try {
+      const failedAttempts = FailedParsingManager.getAllFailedAttempts();
+      setFailedAttemptsCount(failedAttempts.length);
+    } catch (error) {
+      console.error('Error loading failed attempts count:', error);
+    }
+  };
 
   const requestPermissions = async () => {
     if (Platform.OS === 'android') {
@@ -153,7 +185,11 @@ const App = () => {
           <Tab.Screen 
             name="Settings" 
             component={SettingsStack}
-            options={{ title: 'Settings' }}
+            options={{ 
+              title: 'Settings',
+              tabBarBadge: failedAttemptsCount > 0 ? failedAttemptsCount : undefined,
+              tabBarBadgeStyle: { backgroundColor: '#ef4444', color: 'white' }
+            }}
           />
         </Tab.Navigator>
       </NavigationContainer>

@@ -101,5 +101,6 @@ android-app/metro.config.js
 # Flipper
 android-app/android/app/src/debug/
 
-# Data files (optional - remove if you want to track data)
+# Data files (contains sensitive payment information - DO NOT TRACK)
 data/
+server/data/

@@ -96,9 +96,20 @@ const BankStatementUpload = () => {
         throw new Error('Unsupported file type');
       }
 
-      return BankStatementParser.parseBankStatement(text);
+      console.log('🔍 Starting bank statement parsing...');
+      console.log('📄 File type:', fileType);
+      console.log('📝 Extracted text preview:', text.substring(0, 500) + '...');
+      
+      const result = BankStatementParser.parseBankStatement(text);
+      
+      console.log('✅ Parsing complete!');
+      console.log('📊 Account info:', result.accountInfo);
+      console.log('💳 Transactions found:', result.transactions.length);
+      console.log('📋 First few transactions:', result.transactions.slice(0, 3));
+      
+      return result;
     } catch (error) {
-      console.error('Error extracting text:', error);
+      console.error('❌ Error extracting text:', error);
       throw error;
     }
   };
@@ -622,13 +633,47 @@ const BankStatementUpload = () => {
           </div>
           
           {showPreview && (
-            <div style={{ 
-              maxHeight: '500px', 
-              overflowY: 'auto',
-              border: '1px solid #e5e7eb',
-              borderRadius: '0.5rem',
-              backgroundColor: 'white'
-            }}>
+            <div>
+              {/* Debug Information */}
+              <div style={{ 
+                backgroundColor: '#f8fafc', 
+                padding: '1rem', 
+                borderRadius: '0.5rem', 
+                border: '1px solid #e5e7eb',
+                marginBottom: '1rem',
+                fontSize: '0.875rem'
+              }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: '#1f2937' }}>🔍 Debug Information</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <strong>Total Transactions:</strong> {getFilteredTransactions().length}
+                  </div>
+                  <div>
+                    <strong>Selected Account:</strong> {selectedAccount === 'all' ? 'All Accounts' : selectedAccount}
+                  </div>
+                  <div>
+                    <strong>Account Groups:</strong> {Object.keys(accountGroups).length}
+                  </div>
+                  <div>
+                    <strong>Expenses:</strong> {getFilteredTransactions().filter(t => !t.isIncome).length}
+                  </div>
+                  <div>
+                    <strong>Income:</strong> {getFilteredTransactions().filter(t => t.isIncome).length}
+                  </div>
+                </div>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+                  💡 Check browser console (F12) for detailed parsing logs
+                </div>
+              </div>
+
+              {/* Transaction Table */}
+              <div style={{ 
+                maxHeight: '500px', 
+                overflowY: 'auto',
+                border: '1px solid #e5e7eb',
+                borderRadius: '0.5rem',
+                backgroundColor: 'white'
+              }}>
               <table style={{ 
                 width: '100%', 
                 borderCollapse: 'collapse',
@@ -804,6 +849,7 @@ const BankStatementUpload = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

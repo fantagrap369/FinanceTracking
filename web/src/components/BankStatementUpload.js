@@ -16,6 +16,7 @@ const BankStatementUpload = () => {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [newCategory, setNewCategory] = useState('');
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [newCategoryInputVisible, setNewCategoryInputVisible] = useState(false);
   const [groupByCategory, setGroupByCategory] = useState(true);
   const [sortByAmount, setSortByAmount] = useState(true);
   const fileInputRef = useRef(null);
@@ -390,9 +391,11 @@ const BankStatementUpload = () => {
   // Handle creating a new category
   const handleCreateNewCategory = () => {
     if (newCategory.trim() && !availableCategories.includes(newCategory.trim())) {
-      availableCategories.push(newCategory.trim());
+      const categoryToAdd = newCategory.trim();
+      availableCategories.push(categoryToAdd);
       setNewCategory('');
-      setShowNewCategoryInput(false);
+      setNewCategoryInputVisible(false);
+      console.log(`✅ Added new category: "${categoryToAdd}"`);
     }
   };
 
@@ -1078,15 +1081,15 @@ const BankStatementUpload = () => {
                                   ))}
                                 </select>
                                 <button
-                                  onClick={() => setShowNewCategoryInput(!showNewCategoryInput)}
+                                  onClick={() => setNewCategoryInputVisible(!newCategoryInputVisible)}
                                   style={{
                                     padding: '0.25rem 0.5rem',
-                                    backgroundColor: '#f3f4f6',
+                                    backgroundColor: newCategoryInputVisible ? '#3b82f6' : '#f3f4f6',
                                     border: '1px solid #d1d5db',
                                     borderRadius: '0.25rem',
                                     fontSize: '0.75rem',
                                     cursor: 'pointer',
-                                    color: '#6b7280'
+                                    color: newCategoryInputVisible ? 'white' : '#6b7280'
                                   }}
                                   title="Add new category"
                                 >
@@ -1277,22 +1280,22 @@ const BankStatementUpload = () => {
                                 ))}
                               </select>
                               <button
-                                onClick={() => setShowNewCategoryInput(!showNewCategoryInput)}
+                                onClick={() => setNewCategoryInputVisible(!newCategoryInputVisible)}
                                 style={{
                                   padding: '0.25rem 0.5rem',
-                                  backgroundColor: '#f3f4f6',
+                                  backgroundColor: newCategoryInputVisible ? '#3b82f6' : '#f3f4f6',
                                   border: '1px solid #d1d5db',
                                   borderRadius: '0.25rem',
                                   fontSize: '0.75rem',
                                   cursor: 'pointer',
-                                  color: '#6b7280'
+                                  color: newCategoryInputVisible ? 'white' : '#6b7280'
                                 }}
                                 title="Add new category"
                               >
                                 +
                               </button>
                             </div>
-                            {showNewCategoryInput && (
+                            {newCategoryInputVisible && (
                               <div style={{ 
                                 marginTop: '0.5rem', 
                                 display: 'flex', 
@@ -1329,7 +1332,7 @@ const BankStatementUpload = () => {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    setShowNewCategoryInput(false);
+                                    setNewCategoryInputVisible(false);
                                     setNewCategory('');
                                   }}
                                   style={{
